@@ -44,6 +44,7 @@ h1{font-size:1.25rem;margin:0}h2{font-size:1.02rem;margin:0 0 12px}.muted{color:
 .pill{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}.pill.warn{background:var(--warn-soft);color:var(--warn)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px}.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}.tile .tv{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums}.tile.warn{border-left:4px solid var(--warn)}.tile.bad{border-left:4px solid var(--bad)}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;overflow-x:auto}.tabs button{border:0;background:none;padding:9px 13px;cursor:pointer;color:var(--muted);font-weight:600;border-bottom:2px solid transparent}.tabs button[aria-selected]{color:var(--ink);border-bottom-color:var(--accent)}
+.whoami{display:flex;gap:10px;align-items:center;background:var(--surface2);border:1px solid var(--line2);border-radius:10px;padding:8px 10px;margin-bottom:14px}.row-at{display:flex;gap:8px}.row-at .input{flex:1}
 .bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
 .mb{position:fixed;inset:0;background:rgba(9,18,32,.5);display:flex;align-items:flex-start;justify-content:center;padding:5vh 14px;z-index:50;overflow:auto}.modal{background:var(--surface);border-radius:14px;width:100%;max-width:640px;border:1px solid var(--line)}
 .mh{position:relative;padding:16px 20px;border-bottom:1px solid var(--line2)}.mh h2{margin:0;padding-right:30px}.x{position:absolute;right:12px;top:10px;border:0;background:none;font-size:24px;cursor:pointer;color:var(--muted)}.mbody{padding:16px 20px}.mf{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--line2)}
@@ -78,8 +79,8 @@ var AGSCore = (function () {
   var CALLER_STATUSES = ['First time caller', 'Repeat caller', 'Unable to determine'];
   var CALL_TYPES = ['Admission call', 'Facility call'];          // Admission → Park; Facility → Transfer
   var PATH_OF = { 'Admission call': 'Park', 'Facility call': 'Transfer' };
-  var PARK_OUTCOMES = ['Picked up', 'Abandoned', 'Callback scheduled'];
-  var TRANSFER_OUTCOMES = ['Transferred', 'No answer – callback offered', 'Declined'];
+  var PARK_OUTCOMES = ['Picked up', 'Abandoned', 'Callback scheduled', 'Hung up during park'];
+  var TRANSFER_OUTCOMES = ['Transferred', 'No answer – callback offered', 'Declined', 'Hung up during transfer'];
   var DEFAULT_FACILITIES = ['Alaska', 'BHOPB', 'Boca', 'Chicago', 'Clearbrook, MA', 'Clearbrook, PA', 'Delaware', 'Gulf Breeze', 'Heartland',
     'Palm Springs', 'Philadelphia', 'Pompano', 'Sebring', 'Stuart', 'Tampa', 'Texas', 'Castle Rock'];
   var ACTIVE_STATUSES = ['Active', 'Inactive'];
@@ -165,12 +166,17 @@ var AGSCore = (function () {
   function isAdmin(u) { return !!u && u.role === ROLES.ADMIN; }
   function isTL(u) { return !!u && u.role === ROLES.TL; }
   function isAgentRole(u) { return !!u && u.role === ROLES.AGENT; }
-  function capabilities(u) { var a = isAdmin(u), t = isTL(u); return { logCalls: !!u, review: a || t, reports: a || t, manageRoster: a, manageUsers: a, settings: a, audit: a, export: a || t }; }
+  function capabilities(u) { var a = isAdmin(u), t = isTL(u); return { logCalls: isAgentRole(u), review: a || t, reports: a || t, manageRoster: a, manageUsers: a, settings: a, audit: a, export: a || t }; }
+  // The agent record of a signed-in agent: the linked record, or the agent with the same email.
+  function agentOfUser(repo, u) {
+    if (!u) return null; if (u.agentId) { var x = repo.get('agents', u.agentId); if (x && live(x)) return x; }
+    var e = s(u.email).toLowerCase(); return repo.all('agents').filter(function (a) { return live(a) && s(a.Email).toLowerCase() === e; })[0] || null;
+  }
   function buildScope(repo, u) {
     if (isAdmin(u)) return { all: true };
     var sc = { all: false, agents: {}, tls: {} };
     if (isTL(u)) { sc.isTL = true; sc.tls[u.teamLeadId] = true; repo.all('agents').forEach(function (a) { if (a.TeamLeadID === u.teamLeadId) sc.agents[a.AgentID] = true; }); }
-    else if (u.agentId) { sc.agents[u.agentId] = true; var me = repo.get('agents', u.agentId); if (me && me.TeamLeadID) sc.tls[me.TeamLeadID] = true; }
+    else { var me = agentOfUser(repo, u); if (me) { sc.agents[me.AgentID] = true; if (me.TeamLeadID) sc.tls[me.TeamLeadID] = true; } }
     return sc;
   }
   function inScope(sc, entity, r) {
@@ -192,11 +198,11 @@ var AGSCore = (function () {
       return { calls: l.length, first: l.filter(function (c) { return c.CallerStatus === 'First time caller'; }).length, repeat: l.filter(function (c) { return c.CallerStatus === 'Repeat caller'; }).length,
         unknown: l.filter(function (c) { return c.CallerStatus === 'Unable to determine'; }).length,
         parks: parks.length, pickedUp: parks.filter(function (c) { return c.ParkOutcome === 'Picked up'; }).length, abandoned: parks.filter(function (c) { return c.ParkOutcome === 'Abandoned'; }).length,
-        callbacks: parks.filter(function (c) { return c.ParkOutcome === 'Callback scheduled'; }).length, stillParked: parks.filter(pending).length,
+        callbacks: parks.filter(function (c) { return c.ParkOutcome === 'Callback scheduled'; }).length, hungUpPark: parks.filter(function (c) { return c.ParkOutcome === 'Hung up during park'; }).length, stillParked: parks.filter(pending).length,
         avgWait: waits.length ? Math.round(waits.reduce(function (x, y) { return x + y; }, 0) / waits.length) : null, maxWait: waits.length ? Math.max.apply(null, waits) : null,
         overLimit: waits.filter(function (w) { return w > limit; }).length,
         transfers: tr.length, transferred: tr.filter(function (c) { return c.TransferOutcome === 'Transferred'; }).length,
-        noAnswer: tr.filter(function (c) { return c.TransferOutcome === 'No answer – callback offered'; }).length, declined: tr.filter(function (c) { return c.TransferOutcome === 'Declined'; }).length };
+        noAnswer: tr.filter(function (c) { return c.TransferOutcome === 'No answer – callback offered'; }).length, declined: tr.filter(function (c) { return c.TransferOutcome === 'Declined'; }).length, hungUpTransfer: tr.filter(function (c) { return c.TransferOutcome === 'Hung up during transfer'; }).length };
     }
     function group(key) { var g = {}; list.forEach(function (c) { var k = c[key] || '—'; (g[k] = g[k] || []).push(c); }); return Object.keys(g).sort().map(function (k) { var r = sum(g[k]); r.key = k; return r; }); }
     return { total: sum(list), byAgent: group('AgentID'), byDate: group('Date'), byFacility: group('Facility').filter(function (x) { return x.key !== '—'; }), count: list.length };
@@ -276,7 +282,8 @@ var AGSCore = (function () {
   H.whoami = { fn: function (ctx) { return { user: publicUser(ctx.user), serverTime: ctx.now, coreVersion: CORE_VERSION }; } };
   H.bootstrap = { fn: function (ctx, p) {
     var days = Math.max(1, Math.min(400, +p.days || +ctx.settings.HistoryDays || 62)), since = estDateOf(new Date(Date.parse(ctx.now) - days * 86400000).toISOString());
-    var out = { settings: ctx.settings, user: publicUser(ctx.user), serverTime: ctx.now, coreVersion: CORE_VERSION, since: since };
+    var mineA = isAgentRole(ctx.user) ? agentOfUser(ctx.repo, ctx.user) : null;
+    var out = { myAgentId: mineA ? mineA.AgentID : '', settings: ctx.settings, user: publicUser(ctx.user), serverTime: ctx.now, coreVersion: CORE_VERSION, since: since };
     out.teamLeads = ctx.repo.all('teamLeads').filter(function (r) { return live(r) && (isAdmin(ctx.user) || ctx.visible('teamLeads', r) || isAgentRole(ctx.user)); });
     out.agents = ctx.repo.all('agents').filter(function (r) { return live(r) && ctx.visible('agents', r); });
     out.calls = ctx.repo.all('calls').filter(function (r) { return live(r) && (r.Date >= since || pending(r)) && ctx.visible('calls', r); });
@@ -293,7 +300,7 @@ var AGSCore = (function () {
     if (CALL_TYPES.indexOf(m.CallType) < 0) errors.CallType = 'Choose admission call or facility call.';
     c.Path = m.Path = PATH_OF[m.CallType] || '';
     var e1 = idProblem(m.CtmId, 'CTM call ID'); if (!s(m.CtmId)) e1 = 'Enter the CTM call ID.'; if (e1) errors.CtmId = e1;
-    var e2 = idProblem(m.LeadId, 'Lead ID'); if (e2) errors.LeadId = e2;
+    var e2 = idProblem(m.LeadId, 'Lead ID'); if (!s(m.LeadId)) e2 = 'Enter the Lead ID.'; if (e2) errors.LeadId = e2;
     if (m.Path === 'Transfer') {
       if (facilitiesOf(ctx.repo.getSettings()).indexOf(m.Facility) < 0 && !(cur && cur.Facility === m.Facility)) errors.Facility = 'Choose the facility.';
       if (TRANSFER_OUTCOMES.indexOf(m.TransferOutcome) < 0) errors.TransferOutcome = 'Choose the transfer outcome.';
@@ -301,9 +308,10 @@ var AGSCore = (function () {
     return { fields: c, merged: m };
   }
   function agentFor(ctx, raw) {
-    if (isAgentRole(ctx.user)) { if (!ctx.user.agentId) forbid('Your account is not linked to an agent. Ask an Admin.'); return ctx.get('agents', ctx.user.agentId, false, true); }
-    var id = s(raw.AgentID); if (!id) throw AgsError('VALIDATION', 'Some fields need attention.', { fields: { AgentID: 'Choose the agent.' } });
-    return ctx.get('agents', id);
+    // a call always belongs to the signed-in agent (identified by their company email)
+    if (!isAgentRole(ctx.user)) forbid('Calls are logged by agents from their own account.');
+    var me = agentOfUser(ctx.repo, ctx.user); if (!me) forbid('Your email is not on the Banyan roster yet. Ask an Admin.');
+    return me;
   }
   H.logCall = { write: true, fn: function (ctx, p) {
     var raw = p.call || {}, errors = {}, a = agentFor(ctx, raw), x = callFields(ctx, raw, null, errors);
@@ -316,11 +324,11 @@ var AGSCore = (function () {
   } };
   H.resolvePark = { write: true, fn: function (ctx, p) {
     var cur = ctx.get('calls', p.id), errors = {};
-    if (isAgentRole(ctx.user) && cur.AgentID !== ctx.user.agentId) forbid('You can resolve only your own parked calls.');
+    if (isAgentRole(ctx.user) && cur.AgentID !== (agentOfUser(ctx.repo, ctx.user) || {}).AgentID) forbid('You can resolve only your own parked calls.');
     if (cur.Path !== 'Park') throw AgsError('VALIDATION', 'Only admission calls are parked.');
     checkVersion('calls', cur, p.expectedVersion);
     var outcome = s(p.outcome), at = s(p.at) || ctx.now;
-    if (PARK_OUTCOMES.indexOf(outcome) < 0) errors.outcome = 'Choose picked up, abandoned or callback scheduled.';
+    if (PARK_OUTCOMES.indexOf(outcome) < 0) errors.outcome = 'Choose picked up, abandoned, callback scheduled or hung up during park.';
     if (!isIso(at)) errors.at = 'Enter a valid time.'; else if (Date.parse(at) < Date.parse(cur.CallAt)) errors.at = 'This is before the call was parked.'; else if (Date.parse(at) > Date.parse(ctx.now) + 120000) errors.at = 'The time cannot be in the future.';
     var by = clean(p.pickedUpBy, 80); if (outcome === 'Picked up' && !by) by = 'Admissions';
     failIf(errors);
@@ -332,7 +340,7 @@ var AGSCore = (function () {
   H.updateCall = { write: true, fn: function (ctx, p) {
     var cur = ctx.get('calls', p.id), errors = {}, raw = p.call || {}, agent = isAgentRole(ctx.user);
     if (agent) {
-      if (cur.AgentID !== ctx.user.agentId) forbid('You can edit only your own calls.');
+      if (cur.AgentID !== (agentOfUser(ctx.repo, ctx.user) || {}).AgentID) forbid('You can edit only your own calls.');
       if (cur.Date !== estDateOf(ctx.now)) forbid('Calls from earlier days are corrected by your team lead.');
     } else if (clean(p.reason).length < 5) errors.reason = 'Give a reason for the correction (at least 5 characters).';
     checkVersion('calls', cur, p.expectedVersion);
@@ -369,7 +377,7 @@ var AGSCore = (function () {
     if (f.Email) f.Email = f.Email.toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s(m.Email))) e.Email = 'Enter a valid email address.';
     if (!m.DisplayName) e.DisplayName = 'Enter a name.'; f.Role = m.Role = normRole(m.Role); if (ASSIGNABLE_ROLES.indexOf(m.Role) < 0) e.Role = 'Choose a role.';
     if (m.Role === 'TEAM_LEAD' && !ctx.repo.get('teamLeads', m.TeamLeadID)) e.TeamLeadID = 'Link the team lead record.';
-    if (m.Role === 'AGENT' && !ctx.repo.get('agents', m.AgentID)) e.AgentID = 'Link the agent record.';
+    if (m.Role === 'AGENT' && !ctx.repo.get('agents', m.AgentID) && !agentOfUser(ctx.repo, { email: m.Email })) e.AgentID = 'No agent on the roster has this email. Add the agent first (or check the email).';
     if (!s(m.Active)) f.Active = 'TRUE';
     var dup = ctx.repo.all('users').filter(function (u) { return live(u) && s(u.Email).toLowerCase() === s(m.Email).toLowerCase() && (!cur || u.UserID !== cur.UserID); }); if (dup.length) e.Email = 'This email already has a user record.';
     if (cur && s(cur.Email).toLowerCase() === ctx.user.email && (normRole(m.Role) !== 'ADMIN' || !b(m.Active))) e.Role = 'You cannot remove your own Admin access.';
@@ -436,14 +444,14 @@ var AGSCore = (function () {
           var adm = rnd() < 0.55, iso = new Date(at).toISOString(), c = { CallID: 'CL-' + year + '-' + ('0000' + (++n)).slice(-5), AgentID: a.AgentID, TeamLeadID: a.TeamLeadID, Date: estDateOf(iso), CallAt: iso,
             CallerStatus: CALLER_STATUSES[rnd() < 0.55 ? 0 : rnd() < 0.8 ? 1 : 2], CallType: adm ? 'Admission call' : 'Facility call', Path: adm ? 'Park' : 'Transfer',
             CtmId: String(40000000 + Math.floor(rnd() * 9999999)), LeadId: '00Q' + Math.floor(rnd() * 1e9), Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' };
-          if (adm) { var w = 30 + Math.floor(rnd() * (rnd() < 0.15 ? 600 : 220)), r = rnd(); c.ParkOutcome = r < 0.8 ? 'Picked up' : r < 0.92 ? 'Callback scheduled' : 'Abandoned'; c.ResolvedAt = new Date(at + w * 1000).toISOString(); c.WaitSec = String(w); c.PickedUpBy = c.ParkOutcome === 'Picked up' ? 'Admissions' : ''; }
-          else { c.Facility = fac[Math.floor(rnd() * fac.length)]; var q = rnd(); c.TransferOutcome = q < 0.82 ? 'Transferred' : q < 0.94 ? TRANSFER_OUTCOMES[1] : 'Declined'; }
+          if (adm) { var w = 30 + Math.floor(rnd() * (rnd() < 0.15 ? 600 : 220)), r = rnd(); c.ParkOutcome = r < 0.76 ? 'Picked up' : r < 0.88 ? 'Callback scheduled' : r < 0.94 ? 'Hung up during park' : 'Abandoned'; c.ResolvedAt = new Date(at + w * 1000).toISOString(); c.WaitSec = String(w); c.PickedUpBy = c.ParkOutcome === 'Picked up' ? 'Admissions' : ''; }
+          else { c.Facility = fac[Math.floor(rnd() * fac.length)]; var q = rnd(); c.TransferOutcome = q < 0.8 ? 'Transferred' : q < 0.9 ? TRANSFER_OUTCOMES[1] : q < 0.95 ? 'Hung up during transfer' : 'Declined'; }
           D.calls.push(meta(c));
         }
       });
     }
     // two calls parked right now
-    [[0, 70], [5, 260]].forEach(function (x, j) { var a = D.agents[x[0]], iso = new Date(now - x[1] * 1000).toISOString(); D.calls.push(meta({ CallID: 'CL-' + year + '-' + ('0000' + (++n)).slice(-5), AgentID: a.AgentID, TeamLeadID: a.TeamLeadID, Date: estDateOf(iso), CallAt: iso, CallerStatus: 'First time caller', CallType: 'Admission call', Path: 'Park', CtmId: String(48100000 + j), LeadId: '', Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' })); });
+    [[0, 70], [5, 260]].forEach(function (x, j) { var a = D.agents[x[0]], iso = new Date(now - x[1] * 1000).toISOString(); D.calls.push(meta({ CallID: 'CL-' + year + '-' + ('0000' + (++n)).slice(-5), AgentID: a.AgentID, TeamLeadID: a.TeamLeadID, Date: estDateOf(iso), CallAt: iso, CallerStatus: 'First time caller', CallType: 'Admission call', Path: 'Park', CtmId: String(48100000 + j), LeadId: '00Q' + (700000000 + j), Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' })); });
     var U = function (id, email, nm, role, extra) { D.users.push(meta(Object.assign({ UserID: id, Email: email, DisplayName: nm, Role: role, TeamLeadID: '', AgentID: '', Active: 'TRUE' }, extra || {}))); };
     U('USR-00001', 'celeste.navarro@example.com', 'Celeste Navarro', 'ADMIN');
     U('USR-00002', 'ben.ortega@example.com', 'Ben Ortega', 'TEAM_LEAD', { TeamLeadID: 'TL-00001' });
@@ -457,7 +465,7 @@ var AGSCore = (function () {
     TRANSFER_OUTCOMES: TRANSFER_OUTCOMES, DEFAULT_FACILITIES: DEFAULT_FACILITIES, ACTIVE_STATUSES: ACTIVE_STATUSES, WRITE_ACTIONS: WRITE_ACTIONS,
     AgsError: AgsError, s: s, b: b, isEmail: isEmail, live: live, clone: clone, settingsWithDefaults: settingsWithDefaults, normRole: normRole,
     estDateOf: estDateOf, pht: pht, est: est, isIso: isIso, waitSec: waitSec, fmtWait: fmtWait, facilitiesOf: facilitiesOf, idProblem: idProblem, pending: pending, report: report,
-    isAdmin: isAdmin, isTL: isTL, isAgentRole: isAgentRole, capabilities: capabilities, buildScope: buildScope, inScope: inScope,
+    agentOfUser: agentOfUser, isAdmin: isAdmin, isTL: isTL, isAgentRole: isAgentRole, capabilities: capabilities, buildScope: buildScope, inScope: inScope,
     resolveUser: resolveUser, publicUser: publicUser, handle: handle, generateSynthetic: generateSynthetic,
     _systemContext: function (repo, user) { return makeCtx(repo, user, 'system-' + repo.uuid()); }
   };
@@ -554,7 +562,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function addDays(d, k) { return new Date(Date.parse(d + 'T00:00:00Z') + k * 864e5).toISOString().slice(0, 10); }
   function nowIso() { return new Date().toISOString(); }
   function todayEst() { return C.estDateOf(nowIso()); }
-  function both(iso) { return iso ? C.pht(iso) + ' <span class="muted small">· ' + C.est(iso) + ' EST</span>' : '—'; }
+  function both(iso) { return iso ? C.est(iso) + ' EST <span class="muted small">· ' + C.pht(iso) + ' PHT</span>' : '—'; }
+  // EST date and time for a datetime box (EST = UTC−5), and back
+  function estInput(iso) { return new Date(Date.parse(iso) - 5 * 36e5).toISOString().slice(0, 16); }
+  function fromEstInput(v) { var t = Date.parse(v + ':00Z'); return isNaN(t) ? '' : new Date(t + 5 * 36e5).toISOString(); }
   var S = { user: null, data: null, page: 'log', f: {}, mode: '', theme: lsGet('ags_bt_theme', 'auto') };
   window.__BT = S;
   function agentName(id) { var a = (S.data.agents || []).filter(function (x) { return x.AgentID === id; })[0]; return a ? a.FullName : id; }
@@ -624,10 +635,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function start(mode) {
     S.mode = mode; S.transport = mode === 'demo' ? S.demoT : new HttpTransport();
     $('#app').innerHTML = '<div class="loading">Loading…</div>';
-    api('bootstrap', {}).then(function (d) { S.data = d; S.user = d.user; S.page = (location.hash.replace('#', '') || 'log'); renderShell(); render(); }, function (e) { lsDel(SESS_KEY); idToken = null; S.user = null; renderLogin(e); });
+    api('bootstrap', {}).then(function (d) { S.data = d; S.user = d.user; S.page = (location.hash.replace('#', '') || (isAgent() ? 'log' : 'parked')); renderShell(); render(); }, function (e) { lsDel(SESS_KEY); idToken = null; S.user = null; renderLogin(e); });
   }
   // ---------------- shell
-  var NAV = [['log', 'Log a call', '✚'], ['parked', 'Parked now', '⏱'], ['calls', 'Calls', '☰'], ['reports', 'Reports', '▤', 'reports'], ['settings', 'Settings', '⚙', 'settings']];
+  var NAV = [['log', 'Log a call', '✚', 'logCalls'], ['parked', 'Parked now', '⏱'], ['calls', 'Calls', '☰'], ['reports', 'Reports', '▤', 'reports'], ['settings', 'Settings', '⚙', 'settings']];
   function navList() { return NAV.filter(function (n) { return !n[3] || cap(n[3]); }); }
   function renderShell() {
     $('#app').innerHTML = '<div class="shell"><aside class="side"><div class="brand"><div class="logo">B</div><div><b>Banyan Tracker</b><div class="small" style="opacity:.7">AGS</div></div></div><nav id="nav"></nav><div class="side-foot small">' + (S.mode === 'demo' ? 'Demo data' : 'v' + C.CORE_VERSION) + '</div></aside>' +
@@ -636,7 +647,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   }
   var PAGES = {};
   function render() {
-    if (!S.user) return; var allowed = navList().map(function (n) { return n[0]; }); if (allowed.indexOf(S.page) < 0) S.page = 'log';
+    if (!S.user) return; var allowed = navList().map(function (n) { return n[0]; }); if (allowed.indexOf(S.page) < 0) S.page = allowed[0];
     $('#nav').innerHTML = navList().map(function (n) { var cnt = n[0] === 'parked' ? parkedList().length : 0; return '<button data-act="nav" data-page="' + n[0] + '"' + (n[0] === S.page ? ' aria-current="page"' : '') + '><span class="ni">' + n[2] + '</span>' + n[1] + (cnt ? '<span class="cnt' + (parkedList().some(over) ? ' red' : '') + '">' + cnt + '</span>' : '') + '</button>'; }).join('');
     var lab = navList().filter(function (n) { return n[0] === S.page; })[0]; $('#title').textContent = lab ? lab[1] : ''; document.title = (lab ? lab[1] + ' — ' : '') + 'AGS Banyan Tracker';
     try { $('#page').innerHTML = PAGES[S.page](); } catch (e) { console.error(e); $('#page').innerHTML = '<div class="note bad">This page could not be shown: ' + esc(e.message) + '</div>'; }
@@ -666,40 +677,46 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function seg(name, list, val) { return '<div class="seg" role="group">' + list.map(function (x) { return '<button type="button" class="segb' + (val === x ? ' on' : '') + '" data-act="seg" data-name="' + name + '" data-v="' + esc(x) + '" aria-pressed="' + (val === x) + '">' + esc(x) + '</button>'; }).join('') + '</div>'; }
   PAGES.log = function () {
     var F = S.f.log = S.f.log || { CallerStatus: '', CallType: '' }, path = C.PATH_OF[F.CallType] || '', fac = C.facilitiesOf(S.data.settings);
-    var agentPick = isAgent() ? '' : '<div class="field"><label class="lbl" for="lg-a">Agent</label><select id="lg-a" class="input">' + '<option value="">Choose the agent</option>' + S.data.agents.filter(function (a) { return a.Status !== 'Inactive'; }).sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (F.AgentID === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select><div class="err" data-err="AgentID"></div></div>';
-    var mine = parkedList().filter(function (c) { return !isAgent() || c.AgentID === S.user.agentId; });
-    return '<div class="grid2"><section class="card"><h2>New call</h2>' + agentPick +
+    var agentPick = '', _unused = '<div class="field"><label class="lbl" for="lg-a">Agent</label><select id="lg-a" class="input">' + '<option value="">Choose the agent</option>' + S.data.agents.filter(function (a) { return a.Status !== 'Inactive'; }).sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (F.AgentID === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select><div class="err" data-err="AgentID"></div></div>';
+    var mine = parkedList().filter(function (c) { return c.AgentID === S.data.myAgentId; });
+    if (!F.at) F.at = estInput(nowIso());
+    var who = '<div class="whoami"><span class="av">' + esc(initials(agentName(S.data.myAgentId))) + '</span><span>Logging as <b>' + esc(agentName(S.data.myAgentId)) + '</b><span class="muted small"> · ' + esc(S.user.email) + '</span></span></div>';
+    if (!S.data.myAgentId) return '<div class="note bad">Your email (' + esc(S.user.email) + ') is not on the Banyan roster yet, so calls can\'t be logged. Ask an Admin to check your email in Schedules.</div>';
+    return '<div class="grid2"><section class="card"><h2>New call</h2>' + who +
+      '<div class="field"><label class="lbl" for="lg-at">Date and time (EST)</label><div class="row-at"><input id="lg-at" class="input" type="datetime-local" value="' + esc(F.at) + '"><button type="button" class="btn btn-sm" data-act="atNow">Now</button></div><div class="hint" id="lg-at-h">' + esc(dLabel(F.at.slice(0, 10)) + ', ' + C.est(fromEstInput(F.at)) + ' EST · ' + C.pht(fromEstInput(F.at)) + ' PHT') + '</div><div class="err" data-err="CallAt"></div></div>' +
       '<div class="field"><div class="lbl">Caller</div>' + seg('CallerStatus', C.CALLER_STATUSES, F.CallerStatus) + '<div class="err" data-err="CallerStatus"></div></div>' +
       '<div class="field"><div class="lbl">Call type</div>' + seg('CallType', C.CALL_TYPES, F.CallType) + '<div class="err" data-err="CallType"></div>' + (path ? '<div class="path ' + path.toLowerCase() + '">' + (path === 'Park' ? 'Admission call → this call is <b>parked</b> until Admissions picks up.' : 'Facility call → this call is <b>transferred</b> to the facility.') + '</div>' : '') + '</div>' +
       '<div class="row2"><div class="field"><label class="lbl" for="lg-ctm">CTM call ID</label><input id="lg-ctm" class="input" maxlength="40" autocomplete="off" inputmode="text" placeholder="e.g. 48123456" value="' + esc(F.CtmId || '') + '"><div class="err" data-err="CtmId"></div></div>' +
-      '<div class="field"><label class="lbl" for="lg-lead">Lead ID <span class="muted small">(optional)</span></label><input id="lg-lead" class="input" maxlength="40" autocomplete="off" placeholder="e.g. 00Q5f00000AbCdE" value="' + esc(F.LeadId || '') + '"><div class="err" data-err="LeadId"></div></div></div>' +
+      '<div class="field"><label class="lbl" for="lg-lead">Lead ID</label><input id="lg-lead" class="input" maxlength="40" autocomplete="off" placeholder="e.g. 00Q5f00000AbCdE" value="' + esc(F.LeadId || '') + '"><div class="err" data-err="LeadId"></div></div></div>' +
       (path === 'Transfer' ? '<div class="row2"><div class="field"><label class="lbl" for="lg-fac">Facility</label><select id="lg-fac" class="input"><option value="">Choose the facility</option>' + fac.map(function (x) { return '<option' + (F.Facility === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select><div class="err" data-err="Facility"></div></div>' +
         '<div class="field"><label class="lbl" for="lg-out">Outcome</label><select id="lg-out" class="input"><option value="">Choose the outcome</option>' + C.TRANSFER_OUTCOMES.map(function (x) { return '<option' + (F.TransferOutcome === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select><div class="err" data-err="TransferOutcome"></div></div></div>' : '') +
       '<div class="field"><label class="lbl" for="lg-n">Notes <span class="muted small">(optional; no patient names or health details)</span></label><input id="lg-n" class="input" maxlength="300" value="' + esc(F.Notes || '') + '"></div>' +
       '<button class="btn btn-primary big" data-act="logCall"' + (path ? '' : ' disabled') + '>' + (path === 'Park' ? 'Park call' : path === 'Transfer' ? 'Log transfer' : 'Choose the call type') + '</button></section>' +
       '<section class="card"><h2>' + (isAgent() ? 'Your parked calls' : 'Parked now') + '</h2>' + parkedCards(mine) + '</section></div>';
   };
-  function keepLogInputs() { var F = S.f.log; if (!F) return; [['lg-a', 'AgentID'], ['lg-ctm', 'CtmId'], ['lg-lead', 'LeadId'], ['lg-fac', 'Facility'], ['lg-out', 'TransferOutcome'], ['lg-n', 'Notes']].forEach(function (x) { var el = document.getElementById(x[0]); if (el) F[x[1]] = el.value; }); }
+  function keepLogInputs() { var F = S.f.log; if (!F) return; [['lg-at', 'at'], ['lg-ctm', 'CtmId'], ['lg-lead', 'LeadId'], ['lg-fac', 'Facility'], ['lg-out', 'TransferOutcome'], ['lg-n', 'Notes']].forEach(function (x) { var el = document.getElementById(x[0]); if (el) F[x[1]] = el.value; }); }
+  ACT.atNow = function () { keepLogInputs(); S.f.log.at = estInput(nowIso()); render(); };
+  document.addEventListener('input', function (e) { if (e.target.id === 'lg-at') { var h = document.getElementById('lg-at-h'), iso = fromEstInput(e.target.value); if (h) h.textContent = iso ? dLabel(e.target.value.slice(0, 10)) + ', ' + C.est(iso) + ' EST · ' + C.pht(iso) + ' PHT' : ''; } });
   ACT.seg = function (el) { keepLogInputs(); S.f.log[el.dataset.name] = el.dataset.v; render(); };
   ACT.logCall = function (el) {
-    keepLogInputs(); var F = S.f.log, card = el.closest('.card'), call = { CallerStatus: F.CallerStatus, CallType: F.CallType, CtmId: F.CtmId, LeadId: F.LeadId, Notes: F.Notes, AgentID: F.AgentID };
+    keepLogInputs(); var F = S.f.log, card = el.closest('.card'), call = { CallerStatus: F.CallerStatus, CallType: F.CallType, CtmId: F.CtmId, LeadId: F.LeadId, Notes: F.Notes, CallAt: fromEstInput(F.at) };
     if (C.PATH_OF[F.CallType] === 'Transfer') { call.Facility = F.Facility; call.TransferOutcome = F.TransferOutcome; }
     el.disabled = true;
-    write('logCall', { call: call }).then(function () { var park = C.PATH_OF[F.CallType] === 'Park'; S.f.log = { CallerStatus: '', CallType: '', AgentID: F.AgentID }; render(); toast(park ? 'Call parked. Mark it when Admissions picks up.' : 'Transfer logged.', 'ok'); }, function (e) { el.disabled = false; showErrors(card, e); });
+    write('logCall', { call: call }).then(function () { var park = C.PATH_OF[F.CallType] === 'Park'; S.f.log = { CallerStatus: '', CallType: '' }; render(); toast(park ? 'Call parked. Mark it when Admissions picks up.' : 'Transfer logged.', 'ok'); }, function (e) { el.disabled = false; showErrors(card, e); });
   };
   // ================= Parked now =================
   function parkedCards(list) {
     if (!list.length) return '<div class="empty">No calls parked right now.</div>';
     return '<div class="plist">' + list.map(function (c) {
-      var mayAct = !isAgent() || c.AgentID === S.user.agentId;
-      return '<div class="pcard' + (over(c) ? ' late' : '') + '"><div class="pt"><span class="timer" data-timer="' + esc(c.CallAt) + '">' + C.fmtWait(waitNow(c)) + '</span><div><b>' + esc(agentName(c.AgentID)) + '</b><div class="muted small">Parked ' + both(c.CallAt) + ' · CTM ' + esc(c.CtmId) + ' · ' + esc(c.CallerStatus) + '</div></div></div>' +
+      var mayAct = !isAgent() || c.AgentID === S.data.myAgentId;
+      return '<div class="pcard' + (over(c) ? ' late' : '') + '"><div class="pt"><span class="timer" data-timer="' + esc(c.CallAt) + '">' + C.fmtWait(waitNow(c)) + '</span><div><b>' + esc(agentName(c.AgentID)) + '</b><div class="muted small">Parked ' + dLabel(c.Date) + ', ' + both(c.CallAt) + ' · CTM ' + esc(c.CtmId) + ' · ' + esc(c.CallerStatus) + '</div></div></div>' +
         (mayAct ? '<div class="pact">' + C.PARK_OUTCOMES.map(function (o) { return '<button class="btn' + (o === 'Picked up' ? ' btn-primary' : '') + '" data-act="resolve" data-id="' + esc(c.CallID) + '" data-o="' + esc(o) + '">' + esc(o) + '</button>'; }).join('') + '</div>' : '') + '</div>';
     }).join('') + '</div><div class="muted small" style="margin-top:8px">Red: waiting longer than ' + plural(+S.data.settings.WaitLimitMin || 3, 'minute') + '.</div>';
   }
   PAGES.parked = function () { var l = parkedList(); return '<section class="card"><h2>' + plural(l.length, 'call') + ' waiting for Admissions</h2>' + parkedCards(l) + '</section>'; };
   ACT.resolve = function (el) {
     var c = (S.data.calls || []).filter(function (x) { return x.CallID === el.dataset.id; })[0]; if (!c) return; var o = el.dataset.o;
-    var m = openModal({ title: esc(o), sub: esc(agentName(c.AgentID) + ' · parked ' + C.pht(c.CallAt) + ' PHT'), body: (o === 'Picked up' ? '<label class="lbl" for="rs-by">Picked up by</label><input id="rs-by" class="input" maxlength="80" value="Admissions"><div class="hint">Admissions, or the name of the admissions team member.</div>' : '<p>Record this parked call as <b>' + esc(o.toLowerCase()) + '</b>?</p>') + '<div class="err" data-err="at"></div>', foot: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn btn-primary" id="rs-ok">Save</button>' });
+    var m = openModal({ title: esc(o), sub: esc(agentName(c.AgentID) + ' · parked ' + C.est(c.CallAt) + ' EST'), body: (o === 'Picked up' ? '<label class="lbl" for="rs-by">Picked up by</label><input id="rs-by" class="input" maxlength="80" value="Admissions"><div class="hint">Admissions, or the name of the admissions team member.</div>' : '<p>Record this parked call as <b>' + esc(o.toLowerCase()) + '</b>?</p>') + '<div class="err" data-err="at"></div>', foot: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn btn-primary" id="rs-ok">Save</button>' });
     $('#rs-ok', m).onclick = function () { var by = $('#rs-by', m) ? $('#rs-by', m).value : ''; this.disabled = true; var b = this;
       write('resolvePark', { id: c.CallID, expectedVersion: c.RecordVersion, outcome: o, pickedUpBy: by }).then(function (r) { closeModal(); render(); var x = (S.data.calls || []).filter(function (y) { return y.CallID === c.CallID; })[0]; toast(o + (x ? ' after ' + C.fmtWait(+x.WaitSec) : '') + '.', 'ok'); }, function (e) { b.disabled = false; showErrors(m, e); }); };
   };
@@ -716,7 +733,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       (isAgent() ? '' : '<label>Agent<select class="input" data-f="agent"><option value="">All</option>' + agents.map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (f.agent === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select></label>') +
       '<label>Path<select class="input" data-f="path"><option value="">All</option><option value="Park"' + (f.path === 'Park' ? ' selected' : '') + '>Parked (admission)</option><option value="Transfer"' + (f.path === 'Transfer' ? ' selected' : '') + '>Transferred (facility)</option></select></label>' +
       '<label>Search<input class="input" data-f="q" placeholder="CTM or Lead ID" value="' + esc(f.q) + '"></label></div>' +
-      '<section class="card flush">' + (rows.length ? '<div class="tw"><table class="t"><thead><tr><th>Time (PHT · EST)</th>' + (isAgent() ? '' : '<th>Agent</th>') + '<th>Caller</th><th>Type</th><th>Result</th><th>CTM</th><th>Lead</th></tr></thead><tbody>' +
+      '<section class="card flush">' + (rows.length ? '<div class="tw"><table class="t"><thead><tr><th>Date and time (EST · PHT)</th>' + (isAgent() ? '' : '<th>Agent</th>') + '<th>Caller</th><th>Type</th><th>Result</th><th>CTM</th><th>Lead</th></tr></thead><tbody>' +
         rows.slice(0, 300).map(function (c) { return '<tr class="click" data-act="openCall" data-id="' + esc(c.CallID) + '"><td><b>' + dLabel(c.Date) + '</b><div class="small">' + both(c.CallAt) + '</div></td>' + (isAgent() ? '' : '<td>' + esc(agentName(c.AgentID)) + '</td>') + '<td>' + esc(c.CallerStatus) + '</td><td>' + esc(c.CallType.replace(' call', '')) + '</td><td>' + resultText(c) + '</td><td class="mono">' + esc(c.CtmId) + '</td><td class="mono">' + esc(c.LeadId || '—') + '</td></tr>'; }).join('') +
         '</tbody></table></div>' + (rows.length > 300 ? '<div class="muted small" style="padding:10px">Showing the latest 300 of ' + rows.length + '. Narrow the dates to see more.</div>' : '') : '<div class="empty">No calls match these filters.</div>') + '</section>';
   };
@@ -724,7 +741,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   var qTimer; document.addEventListener('input', function (e) { var el = e.target; if (el.dataset && el.dataset.f === 'q') { clearTimeout(qTimer); qTimer = setTimeout(function () { S.f.calls.q = el.value; var pos = el.selectionStart; render(); var n = $('[data-f=q]'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }, 300); } });
   ACT.openCall = function (el) {
     var c = (S.data.calls || []).filter(function (x) { return x.CallID === el.dataset.id; })[0]; if (!c) return;
-    var own = isAgent() && c.AgentID === S.user.agentId, canEdit = (own && c.Date === todayEst()) || cap('review'), fac = C.facilitiesOf(S.data.settings);
+    var own = isAgent() && c.AgentID === S.data.myAgentId, canEdit = (own && c.Date === todayEst()) || cap('review'), fac = C.facilitiesOf(S.data.settings);
     var dl = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + (v === '' || v === undefined ? '—' : v) + '</dd></div>'; };
     var body = '<dl class="dl">' + dl('Agent', esc(agentName(c.AgentID))) + dl('Team lead', esc(tlName(c.TeamLeadID))) + dl('Time', dLabel(c.Date) + ' · ' + both(c.CallAt)) + dl('Caller', esc(c.CallerStatus)) + dl('Call type', esc(c.CallType)) + dl('CTM call ID', esc(c.CtmId)) + dl('Lead ID', esc(c.LeadId)) +
       (c.Path === 'Park' ? dl('Outcome', c.ParkOutcome ? esc(c.ParkOutcome) + (c.PickedUpBy ? ' by ' + esc(c.PickedUpBy) : '') : 'Still parked') + dl('Wait', c.WaitSec !== '' ? C.fmtWait(+c.WaitSec) : (C.pending(c) ? '<span data-timer="' + esc(c.CallAt) + '"></span> so far' : '—')) + (c.ResolvedAt ? dl('Resolved', both(c.ResolvedAt)) : '') : dl('Facility', esc(c.Facility)) + dl('Outcome', esc(c.TransferOutcome))) +
@@ -764,17 +781,17 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var pool = f.extra && f.from < (S.data.since || '') ? f.extra : S.data.calls, r = C.report(pool, { from: f.from, to: f.to, agentId: f.agent, waitLimitSec: limitSec() }), T = r.total, pct = function (a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; };
     S.lastReport = r;
     var tile = function (k, v, sub, cls) { return '<div class="tile ' + (cls || '') + '"><div class="muted small">' + esc(k) + '</div><div class="tv">' + v + '</div>' + (sub ? '<div class="muted small">' + sub + '</div>' : '') + '</div>'; };
-    var row = function (x, label) { return '<tr><td>' + label + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.first + ' / ' + x.repeat + ' / ' + x.unknown + '</td><td class="n">' + x.parks + '</td><td class="n">' + pct(x.pickedUp, x.parks - x.stillParked) + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + C.fmtWait(x.maxWait) + '</td><td class="n' + (x.overLimit ? ' red' : '') + '">' + x.overLimit + '</td><td class="n">' + x.transfers + '</td><td class="n">' + pct(x.transferred, x.transfers) + '</td></tr>'; };
-    var head = '<tr><th></th><th class="n">Calls</th><th class="n">First / repeat / unknown</th><th class="n">Parked</th><th class="n">Picked up</th><th class="n">Abandoned</th><th class="n">Avg wait</th><th class="n">Longest</th><th class="n">Over limit</th><th class="n">Transfers</th><th class="n">Transferred</th></tr>';
+    var row = function (x, label) { return '<tr><td>' + label + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.first + ' / ' + x.repeat + ' / ' + x.unknown + '</td><td class="n">' + x.parks + '</td><td class="n">' + pct(x.pickedUp, x.parks - x.stillParked) + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + x.hungUpPark + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + C.fmtWait(x.maxWait) + '</td><td class="n' + (x.overLimit ? ' red' : '') + '">' + x.overLimit + '</td><td class="n">' + x.transfers + '</td><td class="n">' + pct(x.transferred, x.transfers) + '</td><td class="n">' + x.hungUpTransfer + '</td></tr>'; };
+    var head = '<tr><th></th><th class="n">Calls</th><th class="n">First / repeat / unknown</th><th class="n">Parked</th><th class="n">Picked up</th><th class="n">Abandoned</th><th class="n">Hung up (park)</th><th class="n">Avg wait</th><th class="n">Longest</th><th class="n">Over limit</th><th class="n">Transfers</th><th class="n">Transferred</th><th class="n">Hung up (transfer)</th></tr>';
     return '<div class="filters">' + PRESETS.map(function (p) { return '<button class="btn btn-sm' + (f.preset === p[0] ? ' btn-primary' : '') + '" data-act="preset" data-p="' + p[0] + '">' + p[1] + '</button>'; }).join('') +
       '<label>From<input type="date" class="input" data-rf="from" value="' + esc(f.from) + '"></label><label>To<input type="date" class="input" data-rf="to" value="' + esc(f.to) + '"></label>' +
       '<label>Agent<select class="input" data-f="agent"><option value="">All</option>' + S.data.agents.slice().sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (f.agent === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select></label>' +
       '<span class="spacer"></span><button class="btn btn-sm" data-act="exportCsv"' + (r.count ? '' : ' disabled') + '>Export CSV</button></div>' +
-      '<div class="tiles">' + tile('Calls', T.calls, T.first + ' first time · ' + T.repeat + ' repeat · ' + T.unknown + ' unknown') + tile('Parked (admission)', T.parks, T.stillParked ? T.stillParked + ' still parked' : '') + tile('Picked up', pct(T.pickedUp, T.parks - T.stillParked), T.pickedUp + ' picked up · ' + T.callbacks + ' callback · ' + T.abandoned + ' abandoned', T.abandoned ? 'warn' : '') +
-        tile('Wait', C.fmtWait(T.avgWait), 'average · longest ' + C.fmtWait(T.maxWait)) + tile('Over ' + (+S.data.settings.WaitLimitMin || 3) + ' min', T.overLimit, 'parked calls', T.overLimit ? 'bad' : '') + tile('Transfers (facility)', T.transfers, pct(T.transferred, T.transfers) + ' transferred') + '</div>' +
+      '<div class="tiles">' + tile('Calls', T.calls, T.first + ' first time · ' + T.repeat + ' repeat · ' + T.unknown + ' unknown') + tile('Parked (admission)', T.parks, T.stillParked ? T.stillParked + ' still parked' : '') + tile('Picked up', pct(T.pickedUp, T.parks - T.stillParked), T.pickedUp + ' picked up · ' + T.callbacks + ' callback · ' + T.abandoned + ' abandoned · ' + T.hungUpPark + ' hung up', T.abandoned || T.hungUpPark ? 'warn' : '') +
+        tile('Wait', C.fmtWait(T.avgWait), 'average · longest ' + C.fmtWait(T.maxWait)) + tile('Over ' + (+S.data.settings.WaitLimitMin || 3) + ' min', T.overLimit, 'parked calls', T.overLimit ? 'bad' : '') + tile('Transfers (facility)', T.transfers, pct(T.transferred, T.transfers) + ' transferred · ' + T.hungUpTransfer + ' hung up') + '</div>' +
       (r.count ? '<section class="card flush"><h2 class="pad">By agent</h2><div class="tw"><table class="t">' + head + r.byAgent.map(function (x) { return row(x, esc(agentName(x.key))); }).join('') + row(T, '<b>Total</b>') + '</table></div></section>' +
         '<div class="grid2"><section class="card flush"><h2 class="pad">By day</h2><div class="tw"><table class="t"><tr><th>Day</th><th class="n">Calls</th><th class="n">Parked</th><th class="n">Abandoned</th><th class="n">Avg wait</th><th class="n">Transfers</th></tr>' + r.byDate.slice().reverse().map(function (x) { return '<tr><td>' + dLabel(x.key) + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.parks + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + x.transfers + '</td></tr>'; }).join('') + '</table></div></section>' +
-        '<section class="card flush"><h2 class="pad">Transfers by facility</h2><div class="tw"><table class="t"><tr><th>Facility</th><th class="n">Transfers</th><th class="n">Transferred</th><th class="n">No answer</th><th class="n">Declined</th></tr>' + r.byFacility.sort(function (a, b) { return b.transfers - a.transfers; }).map(function (x) { return '<tr><td>' + esc(x.key) + '</td><td class="n">' + x.transfers + '</td><td class="n">' + x.transferred + '</td><td class="n">' + x.noAnswer + '</td><td class="n">' + x.declined + '</td></tr>'; }).join('') + '</table></div></section></div>'
+        '<section class="card flush"><h2 class="pad">Transfers by facility</h2><div class="tw"><table class="t"><tr><th>Facility</th><th class="n">Transfers</th><th class="n">Transferred</th><th class="n">No answer</th><th class="n">Declined</th><th class="n">Hung up</th></tr>' + r.byFacility.sort(function (a, b) { return b.transfers - a.transfers; }).map(function (x) { return '<tr><td>' + esc(x.key) + '</td><td class="n">' + x.transfers + '</td><td class="n">' + x.transferred + '</td><td class="n">' + x.noAnswer + '</td><td class="n">' + x.declined + '</td><td class="n">' + x.hungUpTransfer + '</td></tr>'; }).join('') + '</table></div></section></div>'
         : '<div class="empty card">No calls in this period.</div>');
   };
   ACT.preset = function (el) { var f = S.f.reports, rg = presetRange(el.dataset.p); f.preset = el.dataset.p; f.from = rg[0]; f.to = rg[1]; loadRange(); };
@@ -782,8 +799,8 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var f = S.f.reports, pool = f.extra && f.from < (S.data.since || '') ? f.extra : S.data.calls;
     var rows = pool.filter(function (c) { return c.Date >= f.from && c.Date <= f.to && (!f.agent || c.AgentID === f.agent); }).sort(function (a, b) { return a.CallAt < b.CallAt ? -1 : 1; });
     var cell = function (v) { v = String(v === null || v === undefined ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    var head = ['Call ID', 'Day (EST)', 'Time PHT', 'Time EST', 'Agent', 'Team lead', 'Caller', 'Call type', 'Path', 'CTM call ID', 'Lead ID', 'Facility', 'Transfer outcome', 'Park outcome', 'Picked up by', 'Wait (m:ss)', 'Notes'];
-    var csv = '\ufeff' + [head].concat(rows.map(function (c) { return [c.CallID, c.Date, C.pht(c.CallAt), C.est(c.CallAt), agentName(c.AgentID), tlName(c.TeamLeadID), c.CallerStatus, c.CallType, c.Path, c.CtmId, c.LeadId, c.Facility, c.TransferOutcome, c.ParkOutcome, c.PickedUpBy, c.WaitSec !== '' ? C.fmtWait(+c.WaitSec) : '', c.Notes]; })).map(function (r) { return r.map(cell).join(','); }).join('\r\n');
+    var head = ['Call ID', 'Date (EST)', 'Time EST', 'Time PHT', 'Agent', 'Team lead', 'Caller', 'Call type', 'Path', 'CTM call ID', 'Lead ID', 'Facility', 'Transfer outcome', 'Park outcome', 'Picked up by', 'Wait (m:ss)', 'Notes'];
+    var csv = '\ufeff' + [head].concat(rows.map(function (c) { return [c.CallID, c.Date, C.est(c.CallAt), C.pht(c.CallAt), agentName(c.AgentID), tlName(c.TeamLeadID), c.CallerStatus, c.CallType, c.Path, c.CtmId, c.LeadId, c.Facility, c.TransferOutcome, c.ParkOutcome, c.PickedUpBy, c.WaitSec !== '' ? C.fmtWait(+c.WaitSec) : '', c.Notes]; })).map(function (r) { return r.map(cell).join(','); }).join('\r\n');
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'banyan_calls_' + f.from + '_to_' + f.to + '.csv'; document.body.appendChild(a); a.click(); a.remove();
     api('logExport', { report: 'calls ' + f.from + ' to ' + f.to, rowCount: rows.length }).catch(function () { }); toast('Exported ' + plural(rows.length, 'call') + '.', 'ok');
   };
@@ -818,7 +835,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   var opt = function (list, blank) { return (blank ? [['', blank]] : []).concat(list); };
   ACT.editUser = function (el) { var u = el.dataset.id ? S.data.users.filter(function (x) { return x.UserID === el.dataset.id; })[0] : null;
     formModal({ title: u ? 'Edit user' : 'Add user', rec: u, idKey: 'UserID', action: 'saveUser', fields: [{ k: 'Email', label: 'Company Google email', type: 'email' }, { k: 'DisplayName', label: 'Name' }, { k: 'Role', label: 'Role', def: 'AGENT', opts: C.ASSIGNABLE_ROLES.map(function (r) { return [r, C.ROLE_LABELS[r]]; }) },
-      { k: 'AgentID', label: 'Agent record (agents)', opts: opt(S.data.agents.map(function (a) { return [a.AgentID, a.FullName]; }), 'None') }, { k: 'TeamLeadID', label: 'Team lead record (team leads)', opts: opt(S.data.teamLeads.map(function (t) { return [t.TeamLeadID, t.FullName]; }), 'None') }, { k: 'Active', label: 'Can sign in', def: 'TRUE', opts: [['TRUE', 'Yes'], ['FALSE', 'No']] }] }); };
+      { k: 'AgentID', label: 'Agent record (agents)', hint: 'Optional: agents are matched to the roster by their email.', opts: opt(S.data.agents.map(function (a) { return [a.AgentID, a.FullName]; }), 'Match by email') }, { k: 'TeamLeadID', label: 'Team lead record (team leads)', opts: opt(S.data.teamLeads.map(function (t) { return [t.TeamLeadID, t.FullName]; }), 'None') }, { k: 'Active', label: 'Can sign in', def: 'TRUE', opts: [['TRUE', 'Yes'], ['FALSE', 'No']] }] }); };
   ACT.editAgent = function (el) { var a = el.dataset.id ? S.data.agents.filter(function (x) { return x.AgentID === el.dataset.id; })[0] : null;
     formModal({ title: a ? 'Edit agent' : 'Add agent', rec: a, idKey: 'AgentID', action: 'saveAgent', fields: [{ k: 'FullName', label: 'Name (Last, First)' }, { k: 'EmployeeID', label: 'Employee ID' }, { k: 'TeamLeadID', label: 'Team lead', opts: opt(S.data.teamLeads.map(function (t) { return [t.TeamLeadID, t.FullName]; }), 'None') }, { k: 'Email', label: 'Work email', type: 'email' }, { k: 'Status', label: 'Status', def: 'Active', opts: [['Active', 'Active'], ['Inactive', 'Inactive']] }] }); };
   ACT.editTL = function (el) { var t = el.dataset.id ? S.data.teamLeads.filter(function (x) { return x.TeamLeadID === el.dataset.id; })[0] : null;
