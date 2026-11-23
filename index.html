@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AGS Banyan Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+/* DEPLOYMENT CONFIGURATION (see DEPLOYMENT.md). The OAuth client ID is public by design; no secrets here. */
+window.AGS_CONFIG = { API_URL: 'https://script.google.com/macros/s/AKfycbwOySKe1gLcRhE1_ANfwXerh95GFzI6sOwvy7Ao0XnMKOIfhI06YLBUYkYVW1IaV_mtEg/exec', GOOGLE_CLIENT_ID: '475733208759-pmvcgkpk7j32bopbstj0jmm3rj9vii4n.apps.googleusercontent.com', ALLOWED_DOMAIN: 'allianceglobalsolutions.com', ENABLE_DEMO: false };
+</script>
+<style>
+:root{--bg:#EEF1F5;--surface:#fff;--surface2:#F6F8FB;--ink:#172131;--ink2:#3B475A;--muted:#5E6B80;--line:#D7DDE6;--line2:#E8ECF2;--accent:#2B5C9E;--accent2:#1F4A85;--accent-soft:#E3ECF8;--ok:#2A7656;--ok-soft:#E1F1E9;--warn:#9A630E;--warn-soft:#FBF0DC;--bad:#B42318;--bad-soft:#FBE4E0;--side:#102038;--r:10px;--font:'Public Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color-scheme:light}
+:root[data-theme="dark"]{--bg:#0C1420;--surface:#121D2E;--surface2:#172437;--ink:#E4E9F1;--ink2:#C2CBD8;--muted:#94A1B5;--line:#2A3A52;--line2:#22324A;--accent:#7FA8E3;--accent2:#A6C3EE;--accent-soft:#1C2F4C;--ok:#6CC59C;--ok-soft:#173528;--warn:#E3B05A;--warn-soft:#3A2C12;--bad:#FF9C8F;--bad-soft:#3E1D18;--side:#0A1626;color-scheme:dark}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}*,*::before,*::after{box-sizing:inherit}
+html,body,#app{height:100%}body{margin:0;font:14.5px/1.5 var(--font);color:var(--ink);background:var(--bg)}button,input,select,textarea{font:inherit;color:inherit}
+h1{font-size:1.25rem;margin:0}h2{font-size:1.02rem;margin:0 0 12px}.muted{color:var(--muted)}.small{font-size:12.5px}.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,Consolas,monospace;font-size:13px}.spacer{flex:1}.rel{position:relative}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;min-height:36px}.btn:hover{border-color:var(--muted)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}:root[data-theme="dark"] .btn-primary{color:#0B1526}.btn-danger{color:var(--bad);border-color:var(--bad)}.btn-sm{padding:4px 10px;min-height:30px;font-size:13px}.big{width:100%;padding:13px;font-size:15px;margin-top:6px}
+.input{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;min-height:38px}.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}textarea.input{min-height:80px;resize:vertical}
+.lbl{display:block;font-size:12.5px;font-weight:700;color:var(--ink2);margin-bottom:5px}.field{margin-bottom:14px}.err{color:var(--bad);font-size:12.5px;font-weight:600;min-height:0}.err:empty{display:none}.hint{font-size:12px;color:var(--muted);margin-top:3px}
+.note{background:var(--surface2);border:1px solid var(--line2);border-left:3px solid var(--accent);border-radius:8px;padding:10px 12px;margin:10px 0}.note.bad{border-left-color:var(--bad);background:var(--bad-soft)}
+.login{min-height:100%;display:grid;place-items:center;padding:24px;background:linear-gradient(160deg,#0B1526,#18304F)}.lcard{background:var(--surface);border-radius:16px;padding:28px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35)}.lcard h1{font-size:1.5rem;margin:18px 0 6px;line-height:1.2}
+.brand{display:flex;gap:10px;align-items:center}.logo{width:38px;height:38px;border-radius:9px;background:linear-gradient(140deg,#3B8C6E,#1E5A46);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px}
+.demo{margin-top:18px;display:grid;gap:8px}.duser{display:flex;gap:10px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;cursor:pointer;text-align:left}.duser:hover{border-color:var(--accent);background:var(--accent-soft)}
+.av{width:30px;height:30px;border-radius:50%;background:#2D4C78;color:#fff;display:inline-grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.shell{display:grid;grid-template-columns:220px 1fr;height:100%}.side{background:var(--side);color:#D5DEEC;display:flex;flex-direction:column;padding:14px 10px}.side .brand{padding:4px 8px 16px}
+#nav{display:flex;flex-direction:column;gap:2px}#nav button{display:flex;gap:10px;align-items:center;background:none;border:0;color:inherit;padding:9px 10px;border-radius:8px;cursor:pointer;text-align:left;font-weight:500}#nav button:hover{background:rgba(255,255,255,.07)}#nav button[aria-current]{background:rgba(255,255,255,.12);color:#fff;box-shadow:inset 3px 0 0 #7FA8E3}
+.ni{width:18px;text-align:center;opacity:.85}.cnt{margin-left:auto;background:#2D4C78;color:#fff;border-radius:10px;font-size:11.5px;padding:0 7px;font-weight:700}.cnt.red{background:#B42318}.side-foot{margin-top:auto;padding:8px;opacity:.6}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--line)}
+.icon{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:36px;height:36px;cursor:pointer;font-weight:700}.chip{display:flex;gap:8px;align-items:center;border:0;background:none;cursor:pointer;padding:4px 6px;border-radius:8px}.chip:hover{background:var(--surface2)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:220px;padding:6px;z-index:20}.menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:6px;cursor:pointer}.menu button:hover{background:var(--surface2)}
+.page{padding:20px;overflow:auto;flex:1}.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}.card.flush{padding:0;overflow:hidden}.pad{padding:14px 16px 0}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}.row2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.seg{display:flex;flex-wrap:wrap;gap:8px}.segb{flex:1 1 auto;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:11px 12px;font-weight:600;cursor:pointer;min-height:46px}.segb:hover{border-color:var(--accent)}.segb.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent2)}
+:root[data-theme="dark"] .segb.on{color:var(--ink)}.path{margin-top:10px;padding:9px 12px;border-radius:8px;font-size:13.5px}.path.park{background:var(--warn-soft);color:var(--warn)}.path.transfer{background:var(--ok-soft);color:var(--ok)}
+.plist{display:grid;gap:10px}.pcard{border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;padding:12px}.pcard.late{border-left-color:var(--bad);background:var(--bad-soft)}.pt{display:flex;gap:12px;align-items:center}
+.timer{font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;min-width:74px;color:var(--warn)}.late .timer{color:var(--bad)}.pact{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.empty{padding:26px;text-align:center;color:var(--muted)}.loading{padding:40px;text-align:center;color:var(--muted)}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px}.filters label{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:700;color:var(--muted)}.filters .input{min-width:150px;width:auto}
+.tw{overflow-x:auto}.t{width:100%;border-collapse:collapse;font-size:13.5px}.t th{text-align:left;font-size:12px;color:var(--ink2);background:var(--surface2);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}.t td{padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+.t .n{text-align:right;font-variant-numeric:tabular-nums}.t td.red{color:var(--bad);font-weight:700}tr.click{cursor:pointer}tr.click:hover td{background:var(--surface2)}
+.pill{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px}.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}.tile .tv{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums}.tile.warn{border-left:4px solid var(--warn)}.tile.bad{border-left:4px solid var(--bad)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;overflow-x:auto}.tabs button{border:0;background:none;padding:9px 13px;cursor:pointer;color:var(--muted);font-weight:600;border-bottom:2px solid transparent}.tabs button[aria-selected]{color:var(--ink);border-bottom-color:var(--accent)}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.mb{position:fixed;inset:0;background:rgba(9,18,32,.5);display:flex;align-items:flex-start;justify-content:center;padding:5vh 14px;z-index:50;overflow:auto}.modal{background:var(--surface);border-radius:14px;width:100%;max-width:640px;border:1px solid var(--line)}
+.mh{position:relative;padding:16px 20px;border-bottom:1px solid var(--line2)}.mh h2{margin:0;padding-right:30px}.x{position:absolute;right:12px;top:10px;border:0;background:none;font-size:24px;cursor:pointer;color:var(--muted)}.mbody{padding:16px 20px}.mf{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--line2)}
+.dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px 18px;margin:0}.dl dt{font-size:12px;color:var(--muted);font-weight:700}.dl dd{margin:1px 0 0}.sec{border-top:1px solid var(--line2);margin-top:14px;padding-top:12px}
+details.edit{margin-top:14px;border-top:1px solid var(--line2);padding-top:12px}details.edit summary{cursor:pointer;font-weight:700;color:var(--accent)}.hist{padding-left:18px;margin:8px 0 0}.hist li{margin-bottom:6px}
+#toasts{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:8px;z-index:90;max-width:min(420px,calc(100vw - 32px))}.toast{background:#102038;color:#fff;padding:11px 14px;border-radius:9px;border-left:4px solid #7FA8E3;box-shadow:0 8px 24px rgba(0,0,0,.25)}.toast.ok{border-left-color:#6CC59C}.toast.bad{border-left-color:#EE8C7D}
+@media (max-width:900px){.shell{grid-template-columns:1fr}.side{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:30;flex-direction:row;padding:6px calc(6px + env(safe-area-inset-left,0px)) calc(6px + env(safe-area-inset-bottom,0px));}.side .brand,.side-foot{display:none}#nav{flex-direction:row;width:100%;justify-content:space-around}#nav button{flex-direction:column;gap:2px;font-size:11px;padding:6px}.page{padding:14px 14px 90px}.grid2,.row2{grid-template-columns:1fr}.hide-sm{display:none}}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading…</div></div><div id="modals"></div><div id="toasts" role="status" aria-live="polite"></div>
+<script>
+/* =====================================================================
+ * AGS BANYAN TRACKER — SHARED CORE (AGSCore) v1.0.0
+ * Same code in Apps Script (Core.gs, authoritative) and in AGS_Banyan_Tracker.html.
+ * The server enforces every permission, scope and validation rule.
+ * Privacy: only IDs are stored (CTM call ID, Lead ID) — never patient names or health details.
+ * ===================================================================== */
+var AGSCore = (function () {
+  'use strict';
+  var CORE_VERSION = '1.0.0';
+  var APP_NAME = 'Banyan Tracker';
+
+  // ------------------------------------------------------------------ roles
+  // Admin: everything. Team lead: their own team's calls (review and correct). Agent: logs and sees their own calls.
+  var ROLES = { ADMIN: 'ADMIN', TL: 'TEAM_LEAD', AGENT: 'AGENT' };
+  var ROLE_LABELS = { ADMIN: 'Admin', TEAM_LEAD: 'Team lead', AGENT: 'Agent' };
+  var ASSIGNABLE_ROLES = ['ADMIN', 'TEAM_LEAD', 'AGENT'];
+  function normRole(r) { r = String(r || '').toUpperCase().replace(/\s+/g, '_'); return r === 'TL' ? 'TEAM_LEAD' : r; }
+
+  // ------------------------------------------------------------------ call lists
+  var CALLER_STATUSES = ['First time caller', 'Repeat caller', 'Unable to determine'];
+  var CALL_TYPES = ['Admission call', 'Facility call'];          // Admission → Park; Facility → Transfer
+  var PATH_OF = { 'Admission call': 'Park', 'Facility call': 'Transfer' };
+  var PARK_OUTCOMES = ['Picked up', 'Abandoned', 'Callback scheduled'];
+  var TRANSFER_OUTCOMES = ['Transferred', 'No answer – callback offered', 'Declined'];
+  var DEFAULT_FACILITIES = ['Alaska', 'BHOPB', 'Boca', 'Chicago', 'Clearbrook, MA', 'Clearbrook, PA', 'Delaware', 'Gulf Breeze', 'Heartland',
+    'Palm Springs', 'Philadelphia', 'Pompano', 'Sebring', 'Stuart', 'Tampa', 'Texas', 'Castle Rock'];
+  var ACTIVE_STATUSES = ['Active', 'Inactive'];
+
+  // ------------------------------------------------------------------ schema
+  var META = ['IsSynthetic', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'RecordVersion', 'ArchivedAt', 'ArchivedBy'];
+  var SCHEMA = {
+    TeamLeads: ['TeamLeadID', 'FullName', 'Email', 'Status'].concat(META),
+    Agents: ['AgentID', 'EmployeeID', 'FullName', 'TeamLeadID', 'Email', 'Status'].concat(META),
+    Calls: ['CallID', 'AgentID', 'TeamLeadID', 'Date', 'CallAt', 'CallerStatus', 'CallType', 'Path', 'CtmId', 'LeadId', 'Facility', 'TransferOutcome',
+      'ParkOutcome', 'ResolvedAt', 'PickedUpBy', 'WaitSec', 'Notes', 'CorrectionNote'].concat(META),
+    Users: ['UserID', 'Email', 'DisplayName', 'Role', 'TeamLeadID', 'AgentID', 'Active'].concat(META),
+    AuditLog: ['AuditID', 'Timestamp', 'ActorEmail', 'ActorRole', 'Action', 'EntityType', 'EntityID', 'RequestID', 'ChangedFields', 'Details'],
+    SyncLog: ['SyncID', 'Timestamp', 'ActorEmail', 'Action', 'RequestID', 'Status', 'DurationMs', 'EntityType', 'EntityID', 'Message'],
+    AppSettings: ['Key', 'Value', 'Description', 'UpdatedAt', 'UpdatedBy']
+  };
+  var ENTITIES = {
+    teamLeads: { sheet: 'TeamLeads', id: 'TeamLeadID', prefix: 'TL', yearly: false, label: 'Team lead' },
+    agents: { sheet: 'Agents', id: 'AgentID', prefix: 'AG', yearly: false, label: 'Agent' },
+    calls: { sheet: 'Calls', id: 'CallID', prefix: 'CL', yearly: true, label: 'Call' },
+    users: { sheet: 'Users', id: 'UserID', prefix: 'USR', yearly: false, label: 'User' }
+  };
+  var DATA_ENTITIES = ['teamLeads', 'agents', 'calls'];
+  var DEFAULT_SETTINGS = {
+    WaitLimitMin: ['3', 'A parked call waiting longer than this many minutes is flagged red.'],
+    Facilities: [DEFAULT_FACILITIES.join('\n'), 'Facilities agents can transfer to, one per line.'],
+    HistoryDays: ['62', 'How many days of calls the app loads (team leads and admins can load more in Reports).'],
+    SessionHours: ['12', 'How long people stay signed in after signing in with Google (hours, 1–168).'],
+    RosterCampaign: ['Banyan', 'Campaign name used when copying agents and team leads from Schedules.']
+  };
+
+  // ------------------------------------------------------------------ helpers
+  function AgsError(code, message, details) { var e = new Error(message); e.name = 'AgsError'; e.agsCode = code; e.details = details || null; return e; }
+  function s(v) { return v === null || v === undefined ? '' : String(v); }
+  function n(v) { if (v === null || v === undefined) return null; if (typeof v === 'number') return isFinite(v) ? v : null; var t = String(v).trim(); if (t === '') return null; var x = Number(t); return isFinite(x) ? x : null; }
+  function b(v) { return v === true || /^(true|yes|y|1)$/i.test(s(v).trim()); }
+  function isIsoDate(v) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s(v)); if (!m) return false; var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3]; }
+  function dnum(v) { if (!isIsoDate(v)) return null; var p = String(v).split('-'); return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000); }
+  function fromDnum(x) { return new Date(x * 86400000).toISOString().slice(0, 10); }
+  function addDays(v, k) { var x = dnum(v); return x === null ? '' : fromDnum(x + k); }
+  function diffDays(a, c) { var x = dnum(a), y = dnum(c); return x === null || y === null ? null : x - y; }
+  function json(v, fb) { if (v && typeof v === 'object') return v; try { var o = JSON.parse(s(v) || 'null'); return o === null ? fb : o; } catch (e) { return fb; } }
+  function arr(v) { var a = json(v, []); return Array.isArray(a) ? a : []; }
+  function rate(num, den) { return { num: num, den: den, value: den > 0 ? Math.round(num / den * 1000) / 10 : null }; }
+  function fmtRate(r) { return r && r.value !== null && r.value !== undefined ? r.value.toFixed(1) + '%' : 'N/A'; }
+  function round(x, d) { if (x === null || x === undefined || !isFinite(x)) return null; var p = Math.pow(10, d === undefined ? 2 : d); return Math.round(x * p) / p; }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function isEmail(v) { return /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/.test(s(v)); }
+  function live(r) { return r && !r.ArchivedAt; }
+  function byKey(list, key) { var m = {}; (list || []).forEach(function (r) { m[r[key]] = r; }); return m; }
+  function blank(entity) { var o = {}; SCHEMA[ENTITIES[entity].sheet].forEach(function (h) { o[h] = ''; }); return o; }
+  function splitIds(v) { return s(v).split(',').map(function (x) { return x.trim(); }).filter(Boolean); }
+  function settingsWithDefaults(st) { var out = {}; Object.keys(DEFAULT_SETTINGS).forEach(function (k) { out[k] = DEFAULT_SETTINGS[k][0]; }); Object.keys(st || {}).forEach(function (k) { out[k] = s(st[k]); }); return out; }
+  function normRole(r) { return r === 'OPS_MANAGER' ? 'ADMIN' : r; }
+  // Week of month as used by the QA team: days 1–7 = week 1, 8–14 = week 2, ... 29–31 = week 5.
+  function weekOfMonth(d) { return isIsoDate(d) ? Math.min(5, Math.ceil(+d.slice(8, 10) / 7)) : null; }
+  function periodOf(d) { return isIsoDate(d) ? { year: +d.slice(0, 4), month: +d.slice(5, 7), week: weekOfMonth(d) } : null; }
+  function daysInMonth(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+  function weekdayOf(d) { return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(d + "T00:00:00Z").getUTCDay()]; }
+  // ------------------------------------------------------------------ time: the client's EST day; shown in PHT and EST
+  // EST is fixed at UTC−5 (as in Schedules); PHT is UTC+8.
+  var EST_MS = -5 * 3600000, PHT_MS = 8 * 3600000;
+  function estDateOf(iso) { var t = Date.parse(iso); return isNaN(t) ? '' : new Date(t + EST_MS).toISOString().slice(0, 10); }
+  function clockIn(iso, offMs) { var t = Date.parse(iso); if (isNaN(t)) return ''; var d = new Date(t + offMs), h = d.getUTCHours(), m = d.getUTCMinutes(); return (h % 12 || 12) + ':' + ('0' + m).slice(-2) + ' ' + (h < 12 ? 'AM' : 'PM'); }
+  function pht(iso) { return clockIn(iso, PHT_MS); }
+  function est(iso) { return clockIn(iso, EST_MS); }
+  function isIso(v) { return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/.test(s(v)) && !isNaN(Date.parse(v)); }
+  function waitSec(c) { if (!c || c.Path !== 'Park' || !isIso(c.CallAt) || !isIso(c.ResolvedAt)) return null; return Math.max(0, Math.round((Date.parse(c.ResolvedAt) - Date.parse(c.CallAt)) / 1000)); }
+  function fmtWait(sec) { if (sec === null || sec === undefined || sec === '') return '—'; sec = +sec; var m = Math.floor(sec / 60), x = sec % 60; return m + ':' + ('0' + x).slice(-2); }
+  function facilitiesOf(st) { return s(settingsWithDefaults(st).Facilities).split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  // ID fields hold IDs only: letters, digits and . - _ : # ( ) +, with at least 3 digits — never a patient's name.
+  function idProblem(v, label) {
+    var t = s(v).trim(); if (!t) return '';
+    if (t.length > 40) return label + ' must be 40 characters or fewer.';
+    if (!/^[A-Za-z0-9.\-_:#()+ ]+$/.test(t) || (t.replace(/\D/g, '').length < 3)) return 'Enter the ' + label + ' only (at least 3 digits). Never enter a patient\'s name or health details.';
+    if (/[A-Za-z]{3,}\s+[A-Za-z]{3,}/.test(t)) return 'This looks like a name. Enter the ' + label + ' only.';
+    return '';
+  }
+  function isEmail(v) { return /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/.test(s(v)); }
+  function pending(c) { return c && c.Path === 'Park' && !c.ParkOutcome && !c.ArchivedAt; }
+
+  // ------------------------------------------------------------------ permissions and scope
+  function isAdmin(u) { return !!u && u.role === ROLES.ADMIN; }
+  function isTL(u) { return !!u && u.role === ROLES.TL; }
+  function isAgentRole(u) { return !!u && u.role === ROLES.AGENT; }
+  function capabilities(u) { var a = isAdmin(u), t = isTL(u); return { logCalls: !!u, review: a || t, reports: a || t, manageRoster: a, manageUsers: a, settings: a, audit: a, export: a || t }; }
+  function buildScope(repo, u) {
+    if (isAdmin(u)) return { all: true };
+    var sc = { all: false, agents: {}, tls: {} };
+    if (isTL(u)) { sc.isTL = true; sc.tls[u.teamLeadId] = true; repo.all('agents').forEach(function (a) { if (a.TeamLeadID === u.teamLeadId) sc.agents[a.AgentID] = true; }); }
+    else if (u.agentId) { sc.agents[u.agentId] = true; var me = repo.get('agents', u.agentId); if (me && me.TeamLeadID) sc.tls[me.TeamLeadID] = true; }
+    return sc;
+  }
+  function inScope(sc, entity, r) {
+    if (!r) return false; if (sc.all) return true;
+    if (entity === 'agents') return !!sc.agents[r.AgentID];
+    if (entity === 'teamLeads') return !!sc.tls[r.TeamLeadID];
+    if (entity === 'calls') return !!sc.agents[r.AgentID] || (!!sc.isTL && !!r.TeamLeadID && !!sc.tls[r.TeamLeadID]);   // a team lead also keeps their team's earlier calls
+    return true;
+  }
+
+  // ------------------------------------------------------------------ reports (from logged calls only)
+  function report(calls, f) {
+    f = f || {};
+    var list = (calls || []).filter(function (c) { return live(c) && (!f.from || c.Date >= f.from) && (!f.to || c.Date <= f.to) && (!f.agentId || c.AgentID === f.agentId) && (!f.teamLeadId || c.TeamLeadID === f.teamLeadId); });
+    var limit = +f.waitLimitSec || 180;
+    function sum(l) {
+      var parks = l.filter(function (c) { return c.Path === 'Park'; }), tr = l.filter(function (c) { return c.Path === 'Transfer'; });
+      var done = parks.filter(function (c) { return c.ParkOutcome; }), waits = done.map(function (c) { return +c.WaitSec; }).filter(function (x) { return isFinite(x); });
+      return { calls: l.length, first: l.filter(function (c) { return c.CallerStatus === 'First time caller'; }).length, repeat: l.filter(function (c) { return c.CallerStatus === 'Repeat caller'; }).length,
+        unknown: l.filter(function (c) { return c.CallerStatus === 'Unable to determine'; }).length,
+        parks: parks.length, pickedUp: parks.filter(function (c) { return c.ParkOutcome === 'Picked up'; }).length, abandoned: parks.filter(function (c) { return c.ParkOutcome === 'Abandoned'; }).length,
+        callbacks: parks.filter(function (c) { return c.ParkOutcome === 'Callback scheduled'; }).length, stillParked: parks.filter(pending).length,
+        avgWait: waits.length ? Math.round(waits.reduce(function (x, y) { return x + y; }, 0) / waits.length) : null, maxWait: waits.length ? Math.max.apply(null, waits) : null,
+        overLimit: waits.filter(function (w) { return w > limit; }).length,
+        transfers: tr.length, transferred: tr.filter(function (c) { return c.TransferOutcome === 'Transferred'; }).length,
+        noAnswer: tr.filter(function (c) { return c.TransferOutcome === 'No answer – callback offered'; }).length, declined: tr.filter(function (c) { return c.TransferOutcome === 'Declined'; }).length };
+    }
+    function group(key) { var g = {}; list.forEach(function (c) { var k = c[key] || '—'; (g[k] = g[k] || []).push(c); }); return Object.keys(g).sort().map(function (k) { var r = sum(g[k]); r.key = k; return r; }); }
+    return { total: sum(list), byAgent: group('AgentID'), byDate: group('Date'), byFacility: group('Facility').filter(function (x) { return x.key !== '—'; }), count: list.length };
+  }
+
+  // ==================================================================
+  // SERVICE LAYER (same repo contract as the Coaching Hub)
+  // ==================================================================
+  // Field values safe to copy into the audit log (no free text such as details or grievances).
+  var SAFE_AUDIT = ['Status', 'CampaignID', 'AgentID', 'TeamLeadID', 'Date', 'Shift', 'Break1', 'Lunch', 'Break2', 'Published', 'Dates', 'Portion', 'LeaveType', 'DecidedBy', 'Role', 'Active', 'Name', 'FullName', 'Email', 'EmployeeID', 'ArchivedAt', 'CampaignIDs'];
+  function checkVersion(entity, cur, expected) {
+    var def = ENTITIES[entity];
+    if (expected === undefined || expected === null || s(expected) === '') throw AgsError('VALIDATION', 'A record version is required to update this ' + def.label.toLowerCase() + '.');
+    if (parseInt(expected, 10) !== parseInt(cur.RecordVersion, 10)) throw AgsError('CONFLICT', def.label + ' ' + cur[def.id] + ' was changed by ' + (cur.UpdatedBy || 'another user') + ' at ' + cur.UpdatedAt + '. Your change was not saved. Refresh to load the latest version, then reapply your change.', { entity: entity, id: cur[def.id], currentVersion: cur.RecordVersion, current: cur });
+  }
+  function failIf(errors) { if (Object.keys(errors).length) throw AgsError('VALIDATION', 'Some fields need attention.', { fields: errors }); }
+  function forbid(msg) { throw AgsError('FORBIDDEN', msg); }
+  function makeCtx(repo, user, requestId) {
+    var ctx = { repo: repo, user: user, requestId: requestId || '', now: repo.nowIso(), today: repo.today(), settings: settingsWithDefaults(repo.getSettings()), changed: {}, primary: null };
+    var scopeMemo = null;
+    ctx.scope = function () { return scopeMemo || (scopeMemo = buildScope(repo, user)); };
+    ctx.visible = function (entity, r) { return inScope(ctx.scope(), entity, r); };
+    ctx.mark = function (entity, rec) { (ctx.changed[entity] = ctx.changed[entity] || {})[rec[ENTITIES[entity].id]] = rec; };
+    ctx.audit = function (action, entity, id, fields, details) {
+      repo.audit({ AuditID: 'AUD-' + repo.uuid(), Timestamp: ctx.now, ActorEmail: user.email, ActorRole: user.role, Action: action, EntityType: entity, EntityID: id,
+        RequestID: ctx.requestId, ChangedFields: (fields || []).join(','), Details: details && Object.keys(details).length ? JSON.stringify(details).slice(0, 4000) : '' });
+    };
+    ctx.find = function (entity, id) { return id ? repo.get(entity, id) : null; };
+    ctx.get = function (entity, id, allowArchived, internal) {
+      var r = id ? repo.get(entity, id) : null;
+      if (r && !internal && entity !== 'users' && !ctx.visible(entity, r)) r = null;
+      if (!r || (r.ArchivedAt && !allowArchived)) throw AgsError('NOT_FOUND', ENTITIES[entity].label + ' ' + s(id) + ' was not found or has been archived.');
+      return r;
+    };
+    ctx.list = function (entity, pred) { return repo.all(entity).filter(function (r) { return live(r) && (!pred || pred(r)); }); };
+    ctx.insert = function (entity, fields, action, opts) {
+      var def = ENTITIES[entity], rec = blank(entity), det = {}, names = [];
+      Object.keys(fields).forEach(function (k) { if (!(k in rec) || META.indexOf(k) >= 0 || k === def.id) return; rec[k] = s(fields[k]); if (rec[k] !== '') { names.push(k); if (SAFE_AUDIT.indexOf(k) >= 0) det[k] = rec[k]; } });
+      rec[def.id] = repo.nextId(entity, ctx.today.slice(0, 4));
+      rec.IsSynthetic = 'FALSE'; rec.CreatedAt = ctx.now; rec.CreatedBy = user.email; rec.UpdatedAt = ctx.now; rec.UpdatedBy = user.email; rec.RecordVersion = '1';
+      repo.insert(entity, rec); ctx.mark(entity, rec); if (!(opts && opts.noAudit)) ctx.audit(action || 'CREATE', entity, rec[def.id], names, det);
+      return rec;
+    };
+    ctx.update = function (entity, id, changes, expectedVersion, action, opts) {
+      opts = opts || {};
+      var def = ENTITIES[entity], cur = ctx.get(entity, id, opts.allowArchived, opts.internal);
+      if (!opts.internal) checkVersion(entity, cur, expectedVersion);
+      var next = clone(cur), fields = [], det = {};
+      Object.keys(changes).forEach(function (k) {
+        if (!(k in next) || k === def.id || (META.indexOf(k) >= 0 && k !== 'ArchivedAt' && k !== 'ArchivedBy')) return;
+        var v = s(changes[k]); if (s(next[k]) === v) return;
+        fields.push(k); if (SAFE_AUDIT.indexOf(k) >= 0) det[k] = [s(next[k]), v]; next[k] = v;
+      });
+      if (!fields.length) return cur;
+      if (opts.details) Object.keys(opts.details).forEach(function (k) { det[k] = opts.details[k]; });
+      next.UpdatedAt = ctx.now; next.UpdatedBy = user.email; next.RecordVersion = String((parseInt(cur.RecordVersion, 10) || 0) + 1);
+      repo.update(entity, id, next); ctx.mark(entity, next); ctx.audit(action || 'UPDATE', entity, id, fields, det);
+      return next;
+    };
+    ctx.notify = [];   // emails to send after the change is saved (server only)
+    ctx.result = function () { var out = {}; Object.keys(ctx.changed).forEach(function (e) { out[e] = Object.keys(ctx.changed[e]).map(function (k) { return ctx.changed[e][k]; }); }); return { primary: ctx.primary, changed: out }; };
+    return ctx;
+  }
+  // ------------------------------------------------------------------ users
+  function resolveUser(usersList, email) {
+    var e = s(email).toLowerCase().trim();
+    var u = (usersList || []).filter(function (r) { return live(r) && s(r.Email).toLowerCase().trim() === e; })[0];
+    if (!u || !b(u.Active)) return null;
+    var role = normRole(u.Role); if (ASSIGNABLE_ROLES.indexOf(role) < 0) return null;
+    return { email: e, role: role, displayName: u.DisplayName || e, userId: u.UserID, active: true, teamLeadId: role === ROLES.TL ? s(u.TeamLeadID) : '', agentId: role === ROLES.AGENT ? s(u.AgentID) : '' };
+  }
+  function publicUser(u) { return { email: u.email, role: u.role, roleLabel: ROLE_LABELS[u.role] || u.role, teamLeadId: u.teamLeadId, agentId: u.agentId, displayName: u.displayName, userId: u.userId, capabilities: capabilities(u) }; }
+  var H = {};
+  var clean = function (v, max) { return s(v).replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, max || 300); };
+  function nowIsoMin(ctx) { return ctx.now; }
+
+  H.whoami = { fn: function (ctx) { return { user: publicUser(ctx.user), serverTime: ctx.now, coreVersion: CORE_VERSION }; } };
+  H.bootstrap = { fn: function (ctx, p) {
+    var days = Math.max(1, Math.min(400, +p.days || +ctx.settings.HistoryDays || 62)), since = estDateOf(new Date(Date.parse(ctx.now) - days * 86400000).toISOString());
+    var out = { settings: ctx.settings, user: publicUser(ctx.user), serverTime: ctx.now, coreVersion: CORE_VERSION, since: since };
+    out.teamLeads = ctx.repo.all('teamLeads').filter(function (r) { return live(r) && (isAdmin(ctx.user) || ctx.visible('teamLeads', r) || isAgentRole(ctx.user)); });
+    out.agents = ctx.repo.all('agents').filter(function (r) { return live(r) && ctx.visible('agents', r); });
+    out.calls = ctx.repo.all('calls').filter(function (r) { return live(r) && (r.Date >= since || pending(r)) && ctx.visible('calls', r); });
+    out.users = isAdmin(ctx.user) ? ctx.repo.all('users').filter(live) : [];
+    return out;
+  } };
+
+  // ---------- calls
+  function callFields(ctx, raw, cur, errors) {
+    var c = {}, m = {};
+    ['CallerStatus', 'CallType', 'CtmId', 'LeadId', 'Facility', 'TransferOutcome', 'Notes'].forEach(function (k) { if (raw[k] !== undefined) c[k] = clean(raw[k], k === 'Notes' ? 300 : 60); });
+    Object.keys(cur || {}).forEach(function (k) { m[k] = cur[k]; }); Object.keys(c).forEach(function (k) { m[k] = c[k]; });
+    if (CALLER_STATUSES.indexOf(m.CallerStatus) < 0) errors.CallerStatus = 'Choose first time, repeat, or unable to determine.';
+    if (CALL_TYPES.indexOf(m.CallType) < 0) errors.CallType = 'Choose admission call or facility call.';
+    c.Path = m.Path = PATH_OF[m.CallType] || '';
+    var e1 = idProblem(m.CtmId, 'CTM call ID'); if (!s(m.CtmId)) e1 = 'Enter the CTM call ID.'; if (e1) errors.CtmId = e1;
+    var e2 = idProblem(m.LeadId, 'Lead ID'); if (e2) errors.LeadId = e2;
+    if (m.Path === 'Transfer') {
+      if (facilitiesOf(ctx.repo.getSettings()).indexOf(m.Facility) < 0 && !(cur && cur.Facility === m.Facility)) errors.Facility = 'Choose the facility.';
+      if (TRANSFER_OUTCOMES.indexOf(m.TransferOutcome) < 0) errors.TransferOutcome = 'Choose the transfer outcome.';
+    } else if (m.Path === 'Park') { c.Facility = ''; c.TransferOutcome = ''; }
+    return { fields: c, merged: m };
+  }
+  function agentFor(ctx, raw) {
+    if (isAgentRole(ctx.user)) { if (!ctx.user.agentId) forbid('Your account is not linked to an agent. Ask an Admin.'); return ctx.get('agents', ctx.user.agentId, false, true); }
+    var id = s(raw.AgentID); if (!id) throw AgsError('VALIDATION', 'Some fields need attention.', { fields: { AgentID: 'Choose the agent.' } });
+    return ctx.get('agents', id);
+  }
+  H.logCall = { write: true, fn: function (ctx, p) {
+    var raw = p.call || {}, errors = {}, a = agentFor(ctx, raw), x = callFields(ctx, raw, null, errors);
+    var at = s(raw.CallAt) || ctx.now; if (!isIso(at)) errors.CallAt = 'Enter a valid time.';
+    else if (Date.parse(at) > Date.parse(ctx.now) + 120000) errors.CallAt = 'The call time cannot be in the future.';
+    else if (Date.parse(ctx.now) - Date.parse(at) > 7 * 86400000 && isAgentRole(ctx.user)) errors.CallAt = 'Calls older than 7 days are logged by a team lead.';
+    failIf(errors);
+    var rec = Object.assign({}, x.fields, { AgentID: a.AgentID, TeamLeadID: a.TeamLeadID || '', CallAt: new Date(Date.parse(at)).toISOString(), Date: estDateOf(at), ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '' });
+    var r = ctx.insert('calls', rec, 'CALL_LOGGED'); ctx.primary = { entity: 'calls', id: r.CallID };
+  } };
+  H.resolvePark = { write: true, fn: function (ctx, p) {
+    var cur = ctx.get('calls', p.id), errors = {};
+    if (isAgentRole(ctx.user) && cur.AgentID !== ctx.user.agentId) forbid('You can resolve only your own parked calls.');
+    if (cur.Path !== 'Park') throw AgsError('VALIDATION', 'Only admission calls are parked.');
+    checkVersion('calls', cur, p.expectedVersion);
+    var outcome = s(p.outcome), at = s(p.at) || ctx.now;
+    if (PARK_OUTCOMES.indexOf(outcome) < 0) errors.outcome = 'Choose picked up, abandoned or callback scheduled.';
+    if (!isIso(at)) errors.at = 'Enter a valid time.'; else if (Date.parse(at) < Date.parse(cur.CallAt)) errors.at = 'This is before the call was parked.'; else if (Date.parse(at) > Date.parse(ctx.now) + 120000) errors.at = 'The time cannot be in the future.';
+    var by = clean(p.pickedUpBy, 80); if (outcome === 'Picked up' && !by) by = 'Admissions';
+    failIf(errors);
+    var ch = { ParkOutcome: outcome, ResolvedAt: new Date(Date.parse(at)).toISOString(), PickedUpBy: outcome === 'Picked up' ? by : '' };
+    ch.WaitSec = String(waitSec(Object.assign({}, cur, ch)));
+    if (cur.ParkOutcome && !isAgentRole(ctx.user)) ch.CorrectionNote = clean(p.reason, 300);
+    ctx.update('calls', cur.CallID, ch, p.expectedVersion, cur.ParkOutcome ? 'PARK_CORRECTED' : 'PARK_RESOLVED'); ctx.primary = { entity: 'calls', id: cur.CallID };
+  } };
+  H.updateCall = { write: true, fn: function (ctx, p) {
+    var cur = ctx.get('calls', p.id), errors = {}, raw = p.call || {}, agent = isAgentRole(ctx.user);
+    if (agent) {
+      if (cur.AgentID !== ctx.user.agentId) forbid('You can edit only your own calls.');
+      if (cur.Date !== estDateOf(ctx.now)) forbid('Calls from earlier days are corrected by your team lead.');
+    } else if (clean(p.reason).length < 5) errors.reason = 'Give a reason for the correction (at least 5 characters).';
+    checkVersion('calls', cur, p.expectedVersion);
+    var x = callFields(ctx, raw, cur, errors), ch = x.fields;
+    if (raw.CallAt !== undefined && !agent) { if (!isIso(raw.CallAt) || Date.parse(raw.CallAt) > Date.parse(ctx.now) + 120000) errors.CallAt = 'Enter a valid time, not in the future.'; else { ch.CallAt = new Date(Date.parse(raw.CallAt)).toISOString(); ch.Date = estDateOf(ch.CallAt); } }
+    failIf(errors);
+    if (cur.Path === 'Park' && ch.Path === 'Transfer') { ch.ParkOutcome = ''; ch.ResolvedAt = ''; ch.PickedUpBy = ''; ch.WaitSec = ''; }
+    if (cur.Path === 'Transfer' && ch.Path === 'Park') { ch.ParkOutcome = ''; ch.ResolvedAt = ''; ch.WaitSec = ''; }
+    if (ch.CallAt && cur.ResolvedAt && ch.Path !== 'Transfer') { var w = waitSec(Object.assign({}, cur, ch)); ch.WaitSec = w === null ? '' : String(w); }
+    if (!agent) ch.CorrectionNote = clean(p.reason, 300);
+    ctx.update('calls', cur.CallID, ch, p.expectedVersion, agent ? 'CALL_EDITED' : 'CALL_CORRECTED', { details: agent ? {} : { reason: clean(p.reason, 200) } }); ctx.primary = { entity: 'calls', id: cur.CallID };
+  } };
+  H.archiveCall = { write: true, fn: function (ctx, p) {
+    if (isAgentRole(ctx.user)) forbid('Ask your team lead to remove a call.');
+    var cur = ctx.get('calls', p.id), reason = clean(p.reason);
+    if (reason.length < 5) throw AgsError('VALIDATION', 'Some fields need attention.', { fields: { reason: 'Give a reason (at least 5 characters).' } });
+    checkVersion('calls', cur, p.expectedVersion);
+    ctx.update('calls', cur.CallID, { ArchivedAt: ctx.now, ArchivedBy: ctx.user.email }, p.expectedVersion, 'CALL_REMOVED', { details: { reason: reason } }); ctx.primary = { entity: 'calls', id: cur.CallID };
+  } };
+
+  // ---------- roster, users, settings (Admins)
+  function saveSimple(ctx, entity, p, rules) {
+    var def = ENTITIES[entity], raw = p.record || {}, id = s(raw[def.id]), cur = id ? ctx.get(entity, id, false, true) : null, errors = {}, f = {};
+    Object.keys(raw).forEach(function (k) { if (k !== def.id && SCHEMA[def.sheet].indexOf(k) >= 0 && META.indexOf(k) < 0) f[k] = clean(raw[k], 200); });
+    rules(f, Object.assign({}, cur || {}, f), errors, cur); failIf(errors);
+    var r = cur ? (checkVersion(entity, cur, p.expectedVersion), ctx.update(entity, id, f, p.expectedVersion)) : ctx.insert(entity, f);
+    ctx.primary = { entity: entity, id: r[def.id] };
+  }
+  H.saveAgent = { write: true, admin: true, fn: function (ctx, p) { saveSimple(ctx, 'agents', p, function (f, m, e) {
+    if (!m.FullName) e.FullName = 'Enter the name (Last, First).'; if (!m.Status) f.Status = 'Active';
+    if (m.TeamLeadID && !ctx.repo.get('teamLeads', m.TeamLeadID)) e.TeamLeadID = 'Choose an existing team lead.'; if (f.Email) f.Email = f.Email.toLowerCase(); }); } };
+  H.saveTeamLead = { write: true, admin: true, fn: function (ctx, p) { saveSimple(ctx, 'teamLeads', p, function (f, m, e) { if (!m.FullName) e.FullName = 'Enter the name.'; if (!m.Status) f.Status = 'Active'; if (f.Email) f.Email = f.Email.toLowerCase(); }); } };
+  H.saveUser = { write: true, admin: true, fn: function (ctx, p) { saveSimple(ctx, 'users', p, function (f, m, e, cur) {
+    if (f.Email) f.Email = f.Email.toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s(m.Email))) e.Email = 'Enter a valid email address.';
+    if (!m.DisplayName) e.DisplayName = 'Enter a name.'; f.Role = m.Role = normRole(m.Role); if (ASSIGNABLE_ROLES.indexOf(m.Role) < 0) e.Role = 'Choose a role.';
+    if (m.Role === 'TEAM_LEAD' && !ctx.repo.get('teamLeads', m.TeamLeadID)) e.TeamLeadID = 'Link the team lead record.';
+    if (m.Role === 'AGENT' && !ctx.repo.get('agents', m.AgentID)) e.AgentID = 'Link the agent record.';
+    if (!s(m.Active)) f.Active = 'TRUE';
+    var dup = ctx.repo.all('users').filter(function (u) { return live(u) && s(u.Email).toLowerCase() === s(m.Email).toLowerCase() && (!cur || u.UserID !== cur.UserID); }); if (dup.length) e.Email = 'This email already has a user record.';
+    if (cur && s(cur.Email).toLowerCase() === ctx.user.email && (normRole(m.Role) !== 'ADMIN' || !b(m.Active))) e.Role = 'You cannot remove your own Admin access.';
+  }); } };
+  var SETTING_RULES = {
+    WaitLimitMin: function (v) { return /^\d{1,2}$/.test(v) && +v >= 1 && +v <= 60 ? '' : 'Enter minutes from 1 to 60.'; },
+    Facilities: function (v) { var l = v.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); return l.length && l.length <= 80 && l.every(function (x) { return x.length <= 60; }) ? '' : 'List 1 to 80 facilities, one per line.'; },
+    HistoryDays: function (v) { return /^\d{1,3}$/.test(v) && +v >= 7 && +v <= 400 ? '' : 'Enter 7 to 400 days.'; },
+    SessionHours: function (v) { return /^\d{1,3}$/.test(v) && +v >= 1 && +v <= 168 ? '' : 'Enter a number of hours from 1 to 168 (7 days).'; },
+    RosterCampaign: function (v) { return v && v.length <= 80 ? '' : 'Enter the campaign name.'; }
+  };
+  H.saveSettings = { write: true, admin: true, fn: function (ctx, p) {
+    var ch = p.changes || {}, errors = {}, cur = ctx.settings, ok = {};
+    Object.keys(ch).forEach(function (k) { if (!SETTING_RULES[k]) { errors[k] = 'Unknown setting.'; return; } var v = s(ch[k]).trim(); if (k === 'Facilities') v = v.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean).join('\n'); var msg = SETTING_RULES[k](v); if (msg) errors[k] = msg; else if (v !== s(cur[k])) ok[k] = v; });
+    failIf(errors);
+    Object.keys(ok).forEach(function (k) { ctx.repo.setSetting(k, ok[k], ctx.user.email, ctx.now); ctx.audit('SETTINGS_UPDATE', 'settings', k, [k], { value: [s(cur[k]).slice(0, 100), ok[k].slice(0, 100)] }); });
+    return { primary: { entity: 'settings', id: 'AppSettings' }, changed: {}, settings: settingsWithDefaults(ctx.repo.getSettings()) };
+  } };
+
+  // ---------- logs, history, more data, exports
+  H.getAuditLog = { admin: true, fn: function (ctx, p) { return { rows: ctx.repo.readLog('AuditLog', { limit: Math.min(+p.limit || 200, 1000), entityId: s(p.entityId), actor: s(p.actor).toLowerCase(), action: s(p.action) }) }; } };
+  H.getChangeHistory = { fn: function (ctx, p) { if (isAgentRole(ctx.user)) forbid('Change history is for team leads and admins.'); ctx.get('calls', p.id, true); return { rows: ctx.repo.readLog('AuditLog', { limit: 100, entityIds: [s(p.id)] }) }; } };
+  H.getCalls = { fn: function (ctx, p) {
+    if (isAgentRole(ctx.user)) forbid('Reports are for team leads and admins.');
+    var from = s(p.from), to = s(p.to); if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw AgsError('VALIDATION', 'Choose a date range.');
+    return { calls: ctx.repo.all('calls').filter(function (r) { return live(r) && r.Date >= from && r.Date <= to && ctx.visible('calls', r); }) };
+  } };
+  H.logExport = { write: true, fn: function (ctx, p) { if (isAgentRole(ctx.user)) forbid('Exports are for team leads and admins.'); ctx.audit('EXPORT', 'report', clean(p.report, 80), [], { rows: +p.rowCount || 0 }); return { primary: { entity: 'report', id: clean(p.report, 80) }, changed: {} }; } };
+
+  function handle(repo, user, action, payload, requestId) {
+    var h = Object.prototype.hasOwnProperty.call(H, action) ? H[action] : null;
+    if (!h) throw AgsError('NOT_FOUND', 'Unknown action: ' + s(action).slice(0, 40));
+    if (!user || !user.active) throw AgsError('FORBIDDEN', 'Your account is inactive or not registered for ' + APP_NAME + '.');
+    if (h.admin && !isAdmin(user)) throw AgsError('FORBIDDEN', 'This action requires the Admin role.');
+    payload = payload && typeof payload === 'object' ? payload : {};
+    if (!h.write) return h.fn(makeCtx(repo, user, ''), payload);
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(s(requestId))) throw AgsError('VALIDATION', 'A valid request ID is required for write operations.');
+    return repo.withLock(function () {
+      var prior = repo.getRequest(requestId);
+      if (prior) { if (prior.actor !== user.email || prior.action !== action) throw AgsError('VALIDATION', 'This request ID was already used for a different operation.'); var r = clone(prior.result || {}); r.duplicate = true; return r; }
+      var ctx = makeCtx(repo, user, requestId), result = h.fn(ctx, payload) || ctx.result();
+      repo.saveRequest(requestId, { actor: user.email, action: action, result: result, primary: result.primary || ctx.primary });
+      if (ctx.notify.length) { result = clone(result); result.notify = ctx.notify; }   // never stored, so a retried request sends nothing twice
+      return result;
+    });
+  }
+  var WRITE_ACTIONS = Object.keys(H).filter(function (k) { return H[k].write; });
+  var WRITE_ACTIONS = Object.keys(H).filter(function (k) { return H[k].write; });
+  // Synthetic demo data: every name is invented; IDs are random.
+  function generateSynthetic(nowIso) {
+    var D = { teamLeads: [], agents: [], calls: [], users: [] }, n = 0, seed = 7;
+    var rnd = function () { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    var meta = function (r) { r.IsSynthetic = 'TRUE'; r.CreatedAt = nowIso; r.CreatedBy = 'demo'; r.UpdatedAt = nowIso; r.UpdatedBy = 'demo'; r.RecordVersion = '1'; r.ArchivedAt = ''; r.ArchivedBy = ''; return r; };
+    [['TL-00001', 'Ortega, Ben', 'ben.ortega@example.com'], ['TL-00002', 'Cruz, Joanna', 'joanna.cruz@example.com']].forEach(function (t) { D.teamLeads.push(meta({ TeamLeadID: t[0], FullName: t[1], Email: t[2], Status: 'Active' })); });
+    ['Aquino, Bea', 'Santos, Rina', 'Ramos, Leo', 'Herrera, Carlo', 'Bautista, Eli', 'Ignacio, Faye', 'Lim, Paolo', 'Reyes, Mika'].forEach(function (nm, i) {
+      D.agents.push(meta({ AgentID: 'AG-' + ('0000' + (i + 1)).slice(-5), EmployeeID: 'E' + (1001 + i), FullName: nm, TeamLeadID: i < 4 ? 'TL-00001' : 'TL-00002', Email: nm.split(', ').reverse().join('.').toLowerCase() + '@example.com', Status: 'Active' }));
+    });
+    var fac = DEFAULT_FACILITIES, now = Date.parse(nowIso), year = new Date(now).getUTCFullYear();
+    for (var d = 20; d >= 0; d--) {
+      D.agents.forEach(function (a) {
+        var k = 2 + Math.floor(rnd() * 4);
+        for (var i = 0; i < k; i++) {
+          var at = now - d * 86400000 - Math.floor(rnd() * 9 * 3600000) - 600000; if (at > now - 120000) continue;
+          var adm = rnd() < 0.55, iso = new Date(at).toISOString(), c = { CallID: 'CL-' + year + '-' + ('0000' + (++n)).slice(-5), AgentID: a.AgentID, TeamLeadID: a.TeamLeadID, Date: estDateOf(iso), CallAt: iso,
+            CallerStatus: CALLER_STATUSES[rnd() < 0.55 ? 0 : rnd() < 0.8 ? 1 : 2], CallType: adm ? 'Admission call' : 'Facility call', Path: adm ? 'Park' : 'Transfer',
+            CtmId: String(40000000 + Math.floor(rnd() * 9999999)), LeadId: '00Q' + Math.floor(rnd() * 1e9), Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' };
+          if (adm) { var w = 30 + Math.floor(rnd() * (rnd() < 0.15 ? 600 : 220)), r = rnd(); c.ParkOutcome = r < 0.8 ? 'Picked up' : r < 0.92 ? 'Callback scheduled' : 'Abandoned'; c.ResolvedAt = new Date(at + w * 1000).toISOString(); c.WaitSec = String(w); c.PickedUpBy = c.ParkOutcome === 'Picked up' ? 'Admissions' : ''; }
+          else { c.Facility = fac[Math.floor(rnd() * fac.length)]; var q = rnd(); c.TransferOutcome = q < 0.82 ? 'Transferred' : q < 0.94 ? TRANSFER_OUTCOMES[1] : 'Declined'; }
+          D.calls.push(meta(c));
+        }
+      });
+    }
+    // two calls parked right now
+    [[0, 70], [5, 260]].forEach(function (x, j) { var a = D.agents[x[0]], iso = new Date(now - x[1] * 1000).toISOString(); D.calls.push(meta({ CallID: 'CL-' + year + '-' + ('0000' + (++n)).slice(-5), AgentID: a.AgentID, TeamLeadID: a.TeamLeadID, Date: estDateOf(iso), CallAt: iso, CallerStatus: 'First time caller', CallType: 'Admission call', Path: 'Park', CtmId: String(48100000 + j), LeadId: '', Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' })); });
+    var U = function (id, email, nm, role, extra) { D.users.push(meta(Object.assign({ UserID: id, Email: email, DisplayName: nm, Role: role, TeamLeadID: '', AgentID: '', Active: 'TRUE' }, extra || {}))); };
+    U('USR-00001', 'celeste.navarro@example.com', 'Celeste Navarro', 'ADMIN');
+    U('USR-00002', 'ben.ortega@example.com', 'Ben Ortega', 'TEAM_LEAD', { TeamLeadID: 'TL-00001' });
+    U('USR-00003', 'bea.aquino@example.com', 'Bea Aquino', 'AGENT', { AgentID: 'AG-00001' });
+    U('USR-00004', 'rina.santos@example.com', 'Rina Santos', 'AGENT', { AgentID: 'AG-00002' });
+    return D;
+  }
+  return {
+    CORE_VERSION: CORE_VERSION, APP_NAME: APP_NAME, ROLES: ROLES, ROLE_LABELS: ROLE_LABELS, ASSIGNABLE_ROLES: ASSIGNABLE_ROLES, META: META, SCHEMA: SCHEMA, ENTITIES: ENTITIES,
+    DATA_ENTITIES: DATA_ENTITIES, DEFAULT_SETTINGS: DEFAULT_SETTINGS, CALLER_STATUSES: CALLER_STATUSES, CALL_TYPES: CALL_TYPES, PATH_OF: PATH_OF, PARK_OUTCOMES: PARK_OUTCOMES,
+    TRANSFER_OUTCOMES: TRANSFER_OUTCOMES, DEFAULT_FACILITIES: DEFAULT_FACILITIES, ACTIVE_STATUSES: ACTIVE_STATUSES, WRITE_ACTIONS: WRITE_ACTIONS,
+    AgsError: AgsError, s: s, b: b, isEmail: isEmail, live: live, clone: clone, settingsWithDefaults: settingsWithDefaults, normRole: normRole,
+    estDateOf: estDateOf, pht: pht, est: est, isIso: isIso, waitSec: waitSec, fmtWait: fmtWait, facilitiesOf: facilitiesOf, idProblem: idProblem, pending: pending, report: report,
+    isAdmin: isAdmin, isTL: isTL, isAgentRole: isAgentRole, capabilities: capabilities, buildScope: buildScope, inScope: inScope,
+    resolveUser: resolveUser, publicUser: publicUser, handle: handle, generateSynthetic: generateSynthetic,
+    _systemContext: function (repo, user) { return makeCtx(repo, user, 'system-' + repo.uuid()); }
+  };
+})();
+if (typeof module !== 'undefined' && module.exports) { module.exports = AGSCore; }
+
+</script>
+<script>
+
+/* =====================================================================
+ * MemoryRepo — in-memory storage adapter for the SYNTHETIC DEMO.
+ * Implements the same repo contract as the Apps Script SheetsRepo so the
+ * demo runs the exact same AGSCore service code. Writes inside withLock
+ * are rolled back if the handler throws (all-or-nothing per request).
+ * ===================================================================== */
+function MemoryRepo(state, opts) {
+  this.state = state; this.opts = opts || {}; this.locked = false;
+  var self = this;
+  ['audit', 'sync'].forEach(function (k) { if (!self.state[k]) self.state[k] = []; });
+  if (!this.state.requests) this.state.requests = {};
+  if (!this.state.settings) this.state.settings = {};
+  AGSCore.DATA_ENTITIES.concat(['users']).forEach(function (e) { if (!self.state[e]) self.state[e] = []; });
+}
+MemoryRepo.todayIn = function (tz) {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+  catch (e) { return new Date().toISOString().slice(0, 10); }
+};
+MemoryRepo.prototype = {
+  withLock: function (fn) {
+    if (this.locked) throw AGSCore.AgsError('BUSY', 'Another operation is in progress.');
+    var snapshot = JSON.stringify(this.state);
+    this.locked = true;
+    try { var r = fn(); this.locked = false; if (this.opts.onCommit) this.opts.onCommit(this.state); return r; }
+    catch (e) { this.state = JSON.parse(snapshot); this.locked = false; throw e; }
+  },
+  all: function (e) { return this.state[e]; },
+  get: function (e, id) { var k = AGSCore.ENTITIES[e].id, a = this.state[e]; for (var i = 0; i < a.length; i++) if (a[i][k] === id) return a[i]; return null; },
+  insert: function (e, rec) { if (this.get(e, rec[AGSCore.ENTITIES[e].id])) throw AGSCore.AgsError('SERVER_ERROR', 'Duplicate ID generated.'); this.state[e].push(rec); },
+  update: function (e, id, rec) { var k = AGSCore.ENTITIES[e].id, a = this.state[e]; for (var i = 0; i < a.length; i++) if (a[i][k] === id) { a[i] = rec; return; } throw AGSCore.AgsError('NOT_FOUND', 'Record not found.'); },
+  nextId: function (e, year) {
+    var d = AGSCore.ENTITIES[e], pre = d.prefix + '-' + (d.yearly ? year + '-' : ''), max = 0;
+    this.state[e].forEach(function (r) { var id = r[d.id]; if (id.indexOf(pre) === 0) { var x = parseInt(id.slice(pre.length), 10); if (x > max) max = x; } });
+    return pre + ('0000' + (max + 1)).slice(-5);
+  },
+  getSettings: function () { return this.state.settings; },
+  setSetting: function (k, v) { this.state.settings[k] = v; },
+  audit: function (entry) { this.state.audit.push(entry); },
+  getRequest: function (rid) { return this.state.requests[rid] || null; },
+  saveRequest: function (rid, entry) {
+    this.state.requests[rid] = { actor: entry.actor, action: entry.action, result: entry.result };
+    var p = entry.primary || {};
+    this.state.sync.push({ SyncID: 'SYN-' + this.uuid(), Timestamp: this.nowIso(), ActorEmail: entry.actor, Action: entry.action, RequestID: rid, Status: 'OK', DurationMs: '', EntityType: p.entity || '', EntityID: p.id || '', Message: '' });
+    var keys = Object.keys(this.state.requests);
+    if (keys.length > 500) delete this.state.requests[keys[0]];
+  },
+  readLog: function (name, o) {
+    o = o || {};
+    var rows = (name === 'AuditLog' ? this.state.audit : this.state.sync).slice().reverse();
+    if (o.entityId) rows = rows.filter(function (r) { return r.EntityID === o.entityId; });
+    if (o.entityIds) rows = rows.filter(function (r) { return o.entityIds.indexOf(r.EntityID) >= 0; });
+    if (o.actor) rows = rows.filter(function (r) { return String(r.ActorEmail).toLowerCase().indexOf(o.actor) >= 0; });
+    if (o.action) rows = rows.filter(function (r) { return r.Action === o.action; });
+    if (o.status) rows = rows.filter(function (r) { return r.Status === o.status; });
+    return rows.slice(0, o.limit || 200);
+  },
+  createBackup: function (now) { return { name: 'Demo snapshot ' + now, note: 'In demo mode, use "Download demo data (JSON)" to keep a copy.' }; },
+  nowIso: function () { return this.opts.now ? this.opts.now() : new Date().toISOString(); },
+  today: function () { return this.opts.today ? this.opts.today() : MemoryRepo.todayIn(AGSCore.settingsWithDefaults(this.state.settings).Timezone); },
+  uuid: function () {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    return (Date.now().toString(36) + Math.random().toString(36).slice(2, 12)).slice(0, 20);
+  }
+};
+if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRepo; }
+
+</script>
+<script>
+(function () {
+  'use strict';
+  var C = AGSCore, CFG = window.AGS_CONFIG || {}, DEMO_KEY = 'ags_bt_demo_v1', SESS_KEY = 'ags_bt_session';
+  // ---------------- small helpers
+  function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(q, r) { return (r || document).querySelector(q); }
+  function $$(q, r) { return Array.prototype.slice.call((r || document).querySelectorAll(q)); }
+  var LS = (function () { try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; } catch (e) { return null; } })();
+  function lsGet(k, fb) { try { var v = LS && LS.getItem(k); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } }
+  function lsSet(k, v) { try { if (LS) LS.setItem(k, JSON.stringify(v)); } catch (e) { } }
+  function lsDel(k) { try { if (LS) LS.removeItem(k); } catch (e) { } }
+  function rid() { return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12); }
+  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function initials(n) { return String(n || '?').split(', ').reverse().join(' ').split(/\s+/).filter(Boolean).slice(0, 2).map(function (x) { return x[0]; }).join('').toUpperCase(); }
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function dLabel(d) { if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return d || '—'; var x = new Date(d + 'T00:00:00Z'); return WD[x.getUTCDay()] + ' ' + x.getUTCDate() + ' ' + MON[x.getUTCMonth()]; }
+  function addDays(d, k) { return new Date(Date.parse(d + 'T00:00:00Z') + k * 864e5).toISOString().slice(0, 10); }
+  function nowIso() { return new Date().toISOString(); }
+  function todayEst() { return C.estDateOf(nowIso()); }
+  function both(iso) { return iso ? C.pht(iso) + ' <span class="muted small">· ' + C.est(iso) + ' EST</span>' : '—'; }
+  var S = { user: null, data: null, page: 'log', f: {}, mode: '', theme: lsGet('ags_bt_theme', 'auto') };
+  window.__BT = S;
+  function agentName(id) { var a = (S.data.agents || []).filter(function (x) { return x.AgentID === id; })[0]; return a ? a.FullName : id; }
+  function tlName(id) { var a = (S.data.teamLeads || []).filter(function (x) { return x.TeamLeadID === id; })[0]; return a ? a.FullName : (id || '—'); }
+  function cap(k) { return !!(S.user && S.user.capabilities && S.user.capabilities[k]); }
+  function isAgent() { return S.user && S.user.role === 'AGENT'; }
+  function limitSec() { return (+S.data.settings.WaitLimitMin || 3) * 60; }
+  // ---------------- theme: auto (dark 6 PM–6 AM Manila), light, dark
+  function applyTheme() { var t = S.theme; if (t === 'auto') { var h = new Date(Date.now() + 8 * 36e5).getUTCHours(); t = h >= 18 || h < 6 ? 'dark' : 'light'; } document.documentElement.dataset.theme = t; var b = $('#theme-btn'); if (b) { b.textContent = S.theme === 'dark' ? '☾' : S.theme === 'light' ? '☀' : 'A'; b.title = 'Theme: ' + S.theme; } }
+  applyTheme(); setInterval(applyTheme, 60000);
+  // ---------------- toasts and dialogs
+  function toast(m, kind, ms) { var el = document.createElement('div'); el.className = 'toast ' + (kind || ''); el.textContent = m; $('#toasts').appendChild(el); setTimeout(function () { el.remove(); }, ms || 4500); }
+  var stack = [];
+  function openModal(o) {
+    var w = document.createElement('div'); w.className = 'mb'; w.innerHTML = '<div class="modal" role="dialog" aria-modal="true"><div class="mh"><h2>' + o.title + '</h2>' + (o.sub ? '<div class="muted small">' + o.sub + '</div>' : '') + '<button class="x" data-act="closeModal" aria-label="Close">×</button></div><div class="mbody">' + o.body + '</div>' + (o.foot ? '<div class="mf">' + o.foot + '</div>' : '') + '</div>';
+    w.addEventListener('mousedown', function (e) { if (e.target === w) closeModal(); }); $('#modals').appendChild(w); stack.push(w);
+    var f = w.querySelector('input,select,textarea,button.btn-primary'); if (f) setTimeout(function () { f.focus(); }, 30); return w;
+  }
+  function closeModal() { var w = stack.pop(); if (w) w.remove(); }
+  function confirmBox(o) { return new Promise(function (res) { var m = openModal({ title: esc(o.title), body: '<p>' + o.message + '</p>' + (o.reason ? '<label class="lbl" for="cf-r">' + esc(o.reason) + '</label><textarea id="cf-r" class="input" maxlength="300"></textarea><div class="err" id="cf-e"></div>' : ''), foot: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn ' + (o.danger ? 'btn-danger' : 'btn-primary') + '" id="cf-ok">' + esc(o.ok || 'OK') + '</button>' });
+    $('#cf-ok', m).onclick = function () { var r = o.reason ? $('#cf-r', m).value.trim() : ''; if (o.reason && r.length < 5) { $('#cf-e', m).textContent = 'Give a reason (at least 5 characters).'; return; } closeModal(); res({ reason: r }); }; }); }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && stack.length) closeModal(); });
+  // ---------------- transports
+  function MemoryTransport() {
+    var st = lsGet(DEMO_KEY, null); if (!st || !st.db) { st = { db: Object.assign({ settings: {} }, C.generateSynthetic(nowIso())) }; lsSet(DEMO_KEY, st); }
+    var self = this; this.state = st; this.repo = new MemoryRepo(st.db, { onCommit: function (db) { self.state.db = db; lsSet(DEMO_KEY, self.state); }, today: todayEst });
+  }
+  MemoryTransport.prototype.call = function (action, payload, requestId) {
+    var self = this; return new Promise(function (res, rej) { setTimeout(function () { try { var u = C.resolveUser(self.repo.all('users'), S.demoEmail); if (!u) throw C.AgsError('FORBIDDEN', 'This demo user is no longer active.'); res(JSON.parse(JSON.stringify(C.handle(self.repo, u, action, payload || {}, requestId || '')))); } catch (e) { rej(e.agsCode ? { code: e.agsCode, message: e.message, details: e.details } : { code: 'CLIENT_ERROR', message: String(e.message || e) }); } }, 80); });
+  };
+  function HttpTransport() { }
+  function getSession() { var s = lsGet(SESS_KEY, null); return s && s.t && s.x * 1000 - Date.now() > 60000 ? s : null; }
+  HttpTransport.prototype.call = function (action, payload, requestId, retried) {
+    var self = this, sess = getSession();
+    var cred = sess ? Promise.resolve({ sessionToken: sess.t }) : getIdToken().then(function (t) { return { idToken: t }; });
+    return cred.then(function (c) {
+      var ctl = window.AbortController ? new AbortController() : null, tm = setTimeout(function () { if (ctl) ctl.abort(); }, action === 'bootstrap' || action === 'getCalls' ? 150000 : 45000);
+      return fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow', signal: ctl ? ctl.signal : undefined, body: JSON.stringify({ action: action, payload: payload || {}, requestId: requestId || '', idToken: c.idToken, sessionToken: c.sessionToken }) })
+        .then(function (r) { clearTimeout(tm); if (!r.ok) throw { code: 'NETWORK', message: 'The server did not respond (HTTP ' + r.status + '). Try again in a minute.' }; return r.json(); }, function () { clearTimeout(tm); throw { code: 'NETWORK', message: 'Could not reach the server. Check your connection.' }; })
+        .then(function (j) {
+          if (!j.ok) { if (c.sessionToken && j.error && j.error.code === 'UNAUTHENTICATED' && !retried) { lsDel(SESS_KEY); return self.call(action, payload, requestId, true); } throw j.error || { message: 'Request failed.' }; }
+          if (j.session && j.session.token) lsSet(SESS_KEY, { t: j.session.token, x: j.session.exp }); return j.data;
+        });
+    });
+  };
+  var idToken = null, idWaiters = [];
+  function getIdToken() { if (idToken) return Promise.resolve(idToken); return new Promise(function (res) { idWaiters.push(res); renderLogin(); }); }
+  function onCredential(resp) { idToken = resp && resp.credential; var w = idWaiters; idWaiters = []; w.forEach(function (f) { f(idToken); }); if (!S.user) start('http'); }
+  function loadGsi(cb) { if (window.google && google.accounts && google.accounts.id) return cb(); var s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = cb; document.head.appendChild(s); }
+  function api(action, payload) { return S.transport.call(action, payload, C.WRITE_ACTIONS.indexOf(action) >= 0 ? rid() : ''); }
+  function apply(res) { if (!res) return; var ch = res.changed || {}; Object.keys(ch).forEach(function (e) { if (!S.data[e]) return; var key = C.ENTITIES[e].id; ch[e].forEach(function (r) { var i = -1; S.data[e].forEach(function (x, n) { if (x[key] === r[key]) i = n; }); if (r.ArchivedAt) { if (i >= 0) S.data[e].splice(i, 1); } else if (i >= 0) S.data[e][i] = r; else S.data[e].push(r); }); }); if (res.settings) S.data.settings = res.settings; }
+  function write(action, payload) { return api(action, payload).then(function (r) { apply(r); return r; }); }
+  function errText(e) { var f = e && e.details && e.details.fields; return (e && e.message || 'Something went wrong.') + (f ? ' ' + Object.keys(f).map(function (k) { return f[k]; }).join(' ') : ''); }
+  function showErrors(root, e) { $$('.err', root).forEach(function (x) { x.textContent = ''; }); var f = e && e.details && e.details.fields; if (!f) { toast(errText(e), 'bad', 8000); return; } Object.keys(f).forEach(function (k) { var el = root.querySelector('[data-err="' + k + '"]'); if (el) el.textContent = f[k]; else toast(f[k], 'bad', 8000); }); }
+  // ---------------- sign-in
+  function renderLogin(err) {
+    var live = !!(CFG.API_URL && CFG.GOOGLE_CLIENT_ID), demo = CFG.ENABLE_DEMO !== false && !live;
+    var users = []; if (demo) { S.demoT = S.demoT || new MemoryTransport(); users = S.demoT.repo.all('users').filter(function (u) { return C.b(u.Active); }); }
+    $('#app').innerHTML = '<div class="login"><div class="lcard"><div class="brand"><div class="logo">B</div><div><b>Banyan Tracker</b><div class="muted small">Alliance Global Solutions</div></div></div>' +
+      '<h1>Transfers and parked calls, in one place.</h1><p class="muted">Log every call in a few taps. Admission calls are parked until Admissions picks up; facility calls are transferred. Only IDs are kept: never patient names or health details.</p>' +
+      (err ? '<div class="note bad">' + esc(err.message || err) + '</div>' : '') +
+      (live ? '<div id="gis" style="margin-top:18px;min-height:44px">Loading Google sign-in…</div>' : '') +
+      (demo ? '<div class="demo"><div class="lbl">Demo (invented data, stays in this browser)</div>' + users.map(function (u) { return '<button class="duser" data-act="demoLogin" data-email="' + esc(u.Email) + '"><span class="av">' + esc(initials(u.DisplayName)) + '</span><span><b>' + esc(u.DisplayName) + '</b><span class="muted small"> · ' + esc(C.ROLE_LABELS[u.Role]) + '</span></span></button>'; }).join('') + '</div>' : '') +
+      (!live && !demo ? '<div class="note bad">This copy is not configured. An administrator sets API_URL and GOOGLE_CLIENT_ID at the top of index.html.</div>' : '') + '</div></div>';
+    if (live) loadGsi(function () { google.accounts.id.initialize({ client_id: CFG.GOOGLE_CLIENT_ID, callback: onCredential, hd: CFG.ALLOWED_DOMAIN || undefined, auto_select: true }); google.accounts.id.renderButton($('#gis'), { theme: 'outline', size: 'large', width: 280 }); $('#gis').firstChild && ($('#gis').style.minHeight = '44px'); });
+  }
+  function start(mode) {
+    S.mode = mode; S.transport = mode === 'demo' ? S.demoT : new HttpTransport();
+    $('#app').innerHTML = '<div class="loading">Loading…</div>';
+    api('bootstrap', {}).then(function (d) { S.data = d; S.user = d.user; S.page = (location.hash.replace('#', '') || 'log'); renderShell(); render(); }, function (e) { lsDel(SESS_KEY); idToken = null; S.user = null; renderLogin(e); });
+  }
+  // ---------------- shell
+  var NAV = [['log', 'Log a call', '✚'], ['parked', 'Parked now', '⏱'], ['calls', 'Calls', '☰'], ['reports', 'Reports', '▤', 'reports'], ['settings', 'Settings', '⚙', 'settings']];
+  function navList() { return NAV.filter(function (n) { return !n[3] || cap(n[3]); }); }
+  function renderShell() {
+    $('#app').innerHTML = '<div class="shell"><aside class="side"><div class="brand"><div class="logo">B</div><div><b>Banyan Tracker</b><div class="small" style="opacity:.7">AGS</div></div></div><nav id="nav"></nav><div class="side-foot small">' + (S.mode === 'demo' ? 'Demo data' : 'v' + C.CORE_VERSION) + '</div></aside>' +
+      '<div class="main"><header class="top"><h1 id="title"></h1><span class="spacer"></span><button id="theme-btn" class="icon" data-act="theme"></button><div class="rel"><button class="chip" data-act="userMenu"><span class="av">' + esc(initials(S.user.displayName)) + '</span><span class="hide-sm">' + esc(S.user.displayName) + '<span class="muted small"> · ' + esc(S.user.roleLabel) + '</span></span></button></div></header><main id="page" class="page"></main></div></div>';
+    applyTheme();
+  }
+  var PAGES = {};
+  function render() {
+    if (!S.user) return; var allowed = navList().map(function (n) { return n[0]; }); if (allowed.indexOf(S.page) < 0) S.page = 'log';
+    $('#nav').innerHTML = navList().map(function (n) { var cnt = n[0] === 'parked' ? parkedList().length : 0; return '<button data-act="nav" data-page="' + n[0] + '"' + (n[0] === S.page ? ' aria-current="page"' : '') + '><span class="ni">' + n[2] + '</span>' + n[1] + (cnt ? '<span class="cnt' + (parkedList().some(over) ? ' red' : '') + '">' + cnt + '</span>' : '') + '</button>'; }).join('');
+    var lab = navList().filter(function (n) { return n[0] === S.page; })[0]; $('#title').textContent = lab ? lab[1] : ''; document.title = (lab ? lab[1] + ' — ' : '') + 'AGS Banyan Tracker';
+    try { $('#page').innerHTML = PAGES[S.page](); } catch (e) { console.error(e); $('#page').innerHTML = '<div class="note bad">This page could not be shown: ' + esc(e.message) + '</div>'; }
+    tick();
+  }
+  function go(p) { S.page = p; location.hash = p; render(); }
+  window.addEventListener('hashchange', function () { var p = location.hash.replace('#', ''); if (S.user && p && p !== S.page) { S.page = p; render(); } });
+  // live timers for parked calls
+  function parkedList() { return (S.data.calls || []).filter(C.pending).sort(function (a, b) { return a.CallAt < b.CallAt ? -1 : 1; }); }
+  function waitNow(c) { return Math.max(0, Math.round((Date.now() - Date.parse(c.CallAt)) / 1000)); }
+  function over(c) { return waitNow(c) > limitSec(); }
+  function tick() { $$('[data-timer]').forEach(function (el) { var c = { CallAt: el.dataset.timer }, w = waitNow(c); el.textContent = C.fmtWait(w); el.closest('.pcard') && el.closest('.pcard').classList.toggle('late', w > limitSec()); }); }
+  setInterval(tick, 1000);
+  setInterval(function () { if (S.user && !stack.length && document.visibilityState === 'visible' && S.page !== 'log') api('bootstrap', {}).then(function (d) { S.data = d; render(); }, function () { }); }, 60000);
+  // ---------------- events
+  var ACT = {};
+  document.addEventListener('click', function (e) { var el = e.target.closest('[data-act]'); $$('.menu').forEach(function (m) { if (!m.parentNode.contains(e.target)) m.remove(); }); if (!el || el.disabled) return; var f = ACT[el.dataset.act]; if (f) { e.preventDefault(); f(el, e); } });
+  ACT.closeModal = closeModal;
+  ACT.nav = function (el) { go(el.dataset.page); };
+  ACT.theme = function () { S.theme = { auto: 'light', light: 'dark', dark: 'auto' }[S.theme]; lsSet('ags_bt_theme', S.theme); applyTheme(); };
+  ACT.demoLogin = function (el) { S.demoEmail = el.dataset.email; start('demo'); };
+  ACT.userMenu = function (el) { if (el.parentNode.querySelector('.menu')) return; var m = document.createElement('div'); m.className = 'menu'; m.innerHTML = '<div class="muted small" style="padding:6px 10px">' + esc(S.user.email) + '</div>' + (S.mode === 'demo' ? '<button data-act="resetDemo">Reset demo data</button>' : '') + '<button data-act="signOut">Sign out</button>'; el.parentNode.appendChild(m); };
+  ACT.signOut = function () { lsDel(SESS_KEY); idToken = null; try { google.accounts.id.disableAutoSelect(); } catch (e) { } S.user = null; S.data = null; location.hash = ''; renderLogin(); };
+  ACT.resetDemo = function () { lsDel(DEMO_KEY); S.demoT = null; ACT.signOut(); toast('Demo data reset.', 'ok'); };
+
+  // ================= Log a call =================
+  function seg(name, list, val) { return '<div class="seg" role="group">' + list.map(function (x) { return '<button type="button" class="segb' + (val === x ? ' on' : '') + '" data-act="seg" data-name="' + name + '" data-v="' + esc(x) + '" aria-pressed="' + (val === x) + '">' + esc(x) + '</button>'; }).join('') + '</div>'; }
+  PAGES.log = function () {
+    var F = S.f.log = S.f.log || { CallerStatus: '', CallType: '' }, path = C.PATH_OF[F.CallType] || '', fac = C.facilitiesOf(S.data.settings);
+    var agentPick = isAgent() ? '' : '<div class="field"><label class="lbl" for="lg-a">Agent</label><select id="lg-a" class="input">' + '<option value="">Choose the agent</option>' + S.data.agents.filter(function (a) { return a.Status !== 'Inactive'; }).sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (F.AgentID === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select><div class="err" data-err="AgentID"></div></div>';
+    var mine = parkedList().filter(function (c) { return !isAgent() || c.AgentID === S.user.agentId; });
+    return '<div class="grid2"><section class="card"><h2>New call</h2>' + agentPick +
+      '<div class="field"><div class="lbl">Caller</div>' + seg('CallerStatus', C.CALLER_STATUSES, F.CallerStatus) + '<div class="err" data-err="CallerStatus"></div></div>' +
+      '<div class="field"><div class="lbl">Call type</div>' + seg('CallType', C.CALL_TYPES, F.CallType) + '<div class="err" data-err="CallType"></div>' + (path ? '<div class="path ' + path.toLowerCase() + '">' + (path === 'Park' ? 'Admission call → this call is <b>parked</b> until Admissions picks up.' : 'Facility call → this call is <b>transferred</b> to the facility.') + '</div>' : '') + '</div>' +
+      '<div class="row2"><div class="field"><label class="lbl" for="lg-ctm">CTM call ID</label><input id="lg-ctm" class="input" maxlength="40" autocomplete="off" inputmode="text" placeholder="e.g. 48123456" value="' + esc(F.CtmId || '') + '"><div class="err" data-err="CtmId"></div></div>' +
+      '<div class="field"><label class="lbl" for="lg-lead">Lead ID <span class="muted small">(optional)</span></label><input id="lg-lead" class="input" maxlength="40" autocomplete="off" placeholder="e.g. 00Q5f00000AbCdE" value="' + esc(F.LeadId || '') + '"><div class="err" data-err="LeadId"></div></div></div>' +
+      (path === 'Transfer' ? '<div class="row2"><div class="field"><label class="lbl" for="lg-fac">Facility</label><select id="lg-fac" class="input"><option value="">Choose the facility</option>' + fac.map(function (x) { return '<option' + (F.Facility === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select><div class="err" data-err="Facility"></div></div>' +
+        '<div class="field"><label class="lbl" for="lg-out">Outcome</label><select id="lg-out" class="input"><option value="">Choose the outcome</option>' + C.TRANSFER_OUTCOMES.map(function (x) { return '<option' + (F.TransferOutcome === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select><div class="err" data-err="TransferOutcome"></div></div></div>' : '') +
+      '<div class="field"><label class="lbl" for="lg-n">Notes <span class="muted small">(optional; no patient names or health details)</span></label><input id="lg-n" class="input" maxlength="300" value="' + esc(F.Notes || '') + '"></div>' +
+      '<button class="btn btn-primary big" data-act="logCall"' + (path ? '' : ' disabled') + '>' + (path === 'Park' ? 'Park call' : path === 'Transfer' ? 'Log transfer' : 'Choose the call type') + '</button></section>' +
+      '<section class="card"><h2>' + (isAgent() ? 'Your parked calls' : 'Parked now') + '</h2>' + parkedCards(mine) + '</section></div>';
+  };
+  function keepLogInputs() { var F = S.f.log; if (!F) return; [['lg-a', 'AgentID'], ['lg-ctm', 'CtmId'], ['lg-lead', 'LeadId'], ['lg-fac', 'Facility'], ['lg-out', 'TransferOutcome'], ['lg-n', 'Notes']].forEach(function (x) { var el = document.getElementById(x[0]); if (el) F[x[1]] = el.value; }); }
+  ACT.seg = function (el) { keepLogInputs(); S.f.log[el.dataset.name] = el.dataset.v; render(); };
+  ACT.logCall = function (el) {
+    keepLogInputs(); var F = S.f.log, card = el.closest('.card'), call = { CallerStatus: F.CallerStatus, CallType: F.CallType, CtmId: F.CtmId, LeadId: F.LeadId, Notes: F.Notes, AgentID: F.AgentID };
+    if (C.PATH_OF[F.CallType] === 'Transfer') { call.Facility = F.Facility; call.TransferOutcome = F.TransferOutcome; }
+    el.disabled = true;
+    write('logCall', { call: call }).then(function () { var park = C.PATH_OF[F.CallType] === 'Park'; S.f.log = { CallerStatus: '', CallType: '', AgentID: F.AgentID }; render(); toast(park ? 'Call parked. Mark it when Admissions picks up.' : 'Transfer logged.', 'ok'); }, function (e) { el.disabled = false; showErrors(card, e); });
+  };
+  // ================= Parked now =================
+  function parkedCards(list) {
+    if (!list.length) return '<div class="empty">No calls parked right now.</div>';
+    return '<div class="plist">' + list.map(function (c) {
+      var mayAct = !isAgent() || c.AgentID === S.user.agentId;
+      return '<div class="pcard' + (over(c) ? ' late' : '') + '"><div class="pt"><span class="timer" data-timer="' + esc(c.CallAt) + '">' + C.fmtWait(waitNow(c)) + '</span><div><b>' + esc(agentName(c.AgentID)) + '</b><div class="muted small">Parked ' + both(c.CallAt) + ' · CTM ' + esc(c.CtmId) + ' · ' + esc(c.CallerStatus) + '</div></div></div>' +
+        (mayAct ? '<div class="pact">' + C.PARK_OUTCOMES.map(function (o) { return '<button class="btn' + (o === 'Picked up' ? ' btn-primary' : '') + '" data-act="resolve" data-id="' + esc(c.CallID) + '" data-o="' + esc(o) + '">' + esc(o) + '</button>'; }).join('') + '</div>' : '') + '</div>';
+    }).join('') + '</div><div class="muted small" style="margin-top:8px">Red: waiting longer than ' + plural(+S.data.settings.WaitLimitMin || 3, 'minute') + '.</div>';
+  }
+  PAGES.parked = function () { var l = parkedList(); return '<section class="card"><h2>' + plural(l.length, 'call') + ' waiting for Admissions</h2>' + parkedCards(l) + '</section>'; };
+  ACT.resolve = function (el) {
+    var c = (S.data.calls || []).filter(function (x) { return x.CallID === el.dataset.id; })[0]; if (!c) return; var o = el.dataset.o;
+    var m = openModal({ title: esc(o), sub: esc(agentName(c.AgentID) + ' · parked ' + C.pht(c.CallAt) + ' PHT'), body: (o === 'Picked up' ? '<label class="lbl" for="rs-by">Picked up by</label><input id="rs-by" class="input" maxlength="80" value="Admissions"><div class="hint">Admissions, or the name of the admissions team member.</div>' : '<p>Record this parked call as <b>' + esc(o.toLowerCase()) + '</b>?</p>') + '<div class="err" data-err="at"></div>', foot: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn btn-primary" id="rs-ok">Save</button>' });
+    $('#rs-ok', m).onclick = function () { var by = $('#rs-by', m) ? $('#rs-by', m).value : ''; this.disabled = true; var b = this;
+      write('resolvePark', { id: c.CallID, expectedVersion: c.RecordVersion, outcome: o, pickedUpBy: by }).then(function (r) { closeModal(); render(); var x = (S.data.calls || []).filter(function (y) { return y.CallID === c.CallID; })[0]; toast(o + (x ? ' after ' + C.fmtWait(+x.WaitSec) : '') + '.', 'ok'); }, function (e) { b.disabled = false; showErrors(m, e); }); };
+  };
+  // ================= Calls =================
+  function callRows(f) {
+    return (S.data.calls || []).filter(function (c) { return (!f.from || c.Date >= f.from) && (!f.to || c.Date <= f.to) && (!f.agent || c.AgentID === f.agent) && (!f.path || c.Path === f.path) && (!f.q || (c.CtmId + ' ' + c.LeadId + ' ' + c.CallID).toLowerCase().indexOf(f.q.toLowerCase()) >= 0); })
+      .sort(function (a, b) { return a.CallAt < b.CallAt ? 1 : -1; });
+  }
+  function resultText(c) { return c.Path === 'Park' ? (c.ParkOutcome ? c.ParkOutcome + (c.WaitSec !== '' ? ' · ' + C.fmtWait(+c.WaitSec) : '') : '<span class="pill warn">Parked</span>') : esc(c.Facility) + ' · ' + esc(c.TransferOutcome); }
+  PAGES.calls = function () {
+    var f = S.f.calls = S.f.calls || { from: todayEst(), to: todayEst(), agent: '', path: '', q: '' }, rows = callRows(f);
+    var agents = S.data.agents.slice().sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; });
+    return '<div class="filters"><label>From<input type="date" class="input" data-f="from" value="' + esc(f.from) + '"></label><label>To<input type="date" class="input" data-f="to" value="' + esc(f.to) + '"></label>' +
+      (isAgent() ? '' : '<label>Agent<select class="input" data-f="agent"><option value="">All</option>' + agents.map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (f.agent === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select></label>') +
+      '<label>Path<select class="input" data-f="path"><option value="">All</option><option value="Park"' + (f.path === 'Park' ? ' selected' : '') + '>Parked (admission)</option><option value="Transfer"' + (f.path === 'Transfer' ? ' selected' : '') + '>Transferred (facility)</option></select></label>' +
+      '<label>Search<input class="input" data-f="q" placeholder="CTM or Lead ID" value="' + esc(f.q) + '"></label></div>' +
+      '<section class="card flush">' + (rows.length ? '<div class="tw"><table class="t"><thead><tr><th>Time (PHT · EST)</th>' + (isAgent() ? '' : '<th>Agent</th>') + '<th>Caller</th><th>Type</th><th>Result</th><th>CTM</th><th>Lead</th></tr></thead><tbody>' +
+        rows.slice(0, 300).map(function (c) { return '<tr class="click" data-act="openCall" data-id="' + esc(c.CallID) + '"><td><b>' + dLabel(c.Date) + '</b><div class="small">' + both(c.CallAt) + '</div></td>' + (isAgent() ? '' : '<td>' + esc(agentName(c.AgentID)) + '</td>') + '<td>' + esc(c.CallerStatus) + '</td><td>' + esc(c.CallType.replace(' call', '')) + '</td><td>' + resultText(c) + '</td><td class="mono">' + esc(c.CtmId) + '</td><td class="mono">' + esc(c.LeadId || '—') + '</td></tr>'; }).join('') +
+        '</tbody></table></div>' + (rows.length > 300 ? '<div class="muted small" style="padding:10px">Showing the latest 300 of ' + rows.length + '. Narrow the dates to see more.</div>' : '') : '<div class="empty">No calls match these filters.</div>') + '</section>';
+  };
+  document.addEventListener('change', function (e) { var el = e.target; if (el.dataset && el.dataset.f && S.f[S.page]) { S.f[S.page][el.dataset.f] = el.value; render(); } if (el.dataset && el.dataset.rf) { S.f.reports[el.dataset.rf] = el.value; S.f.reports.preset = 'custom'; loadRange(); } });
+  var qTimer; document.addEventListener('input', function (e) { var el = e.target; if (el.dataset && el.dataset.f === 'q') { clearTimeout(qTimer); qTimer = setTimeout(function () { S.f.calls.q = el.value; var pos = el.selectionStart; render(); var n = $('[data-f=q]'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }, 300); } });
+  ACT.openCall = function (el) {
+    var c = (S.data.calls || []).filter(function (x) { return x.CallID === el.dataset.id; })[0]; if (!c) return;
+    var own = isAgent() && c.AgentID === S.user.agentId, canEdit = (own && c.Date === todayEst()) || cap('review'), fac = C.facilitiesOf(S.data.settings);
+    var dl = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + (v === '' || v === undefined ? '—' : v) + '</dd></div>'; };
+    var body = '<dl class="dl">' + dl('Agent', esc(agentName(c.AgentID))) + dl('Team lead', esc(tlName(c.TeamLeadID))) + dl('Time', dLabel(c.Date) + ' · ' + both(c.CallAt)) + dl('Caller', esc(c.CallerStatus)) + dl('Call type', esc(c.CallType)) + dl('CTM call ID', esc(c.CtmId)) + dl('Lead ID', esc(c.LeadId)) +
+      (c.Path === 'Park' ? dl('Outcome', c.ParkOutcome ? esc(c.ParkOutcome) + (c.PickedUpBy ? ' by ' + esc(c.PickedUpBy) : '') : 'Still parked') + dl('Wait', c.WaitSec !== '' ? C.fmtWait(+c.WaitSec) : (C.pending(c) ? '<span data-timer="' + esc(c.CallAt) + '"></span> so far' : '—')) + (c.ResolvedAt ? dl('Resolved', both(c.ResolvedAt)) : '') : dl('Facility', esc(c.Facility)) + dl('Outcome', esc(c.TransferOutcome))) +
+      dl('Notes', esc(c.Notes)) + (c.CorrectionNote ? dl('Last correction', esc(c.CorrectionNote)) : '') + '</dl>' +
+      (canEdit ? '<details class="edit"><summary>' + (own && !cap('review') ? 'Edit this call' : 'Correct this call') + '</summary><div class="row2" style="margin-top:10px"><div class="field"><label class="lbl">Caller</label><select class="input" id="ed-cs">' + C.CALLER_STATUSES.map(function (x) { return '<option' + (x === c.CallerStatus ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field"><label class="lbl">Call type</label><select class="input" id="ed-ct">' + C.CALL_TYPES.map(function (x) { return '<option' + (x === c.CallType ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field"><label class="lbl">CTM call ID</label><input class="input" id="ed-ctm" maxlength="40" value="' + esc(c.CtmId) + '"><div class="err" data-err="CtmId"></div></div><div class="field"><label class="lbl">Lead ID</label><input class="input" id="ed-lead" maxlength="40" value="' + esc(c.LeadId) + '"><div class="err" data-err="LeadId"></div></div>' +
+        '<div class="field"><label class="lbl">Facility (facility calls)</label><select class="input" id="ed-fac"><option value="">—</option>' + fac.concat(c.Facility && fac.indexOf(c.Facility) < 0 ? [c.Facility] : []).map(function (x) { return '<option' + (x === c.Facility ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select><div class="err" data-err="Facility"></div></div>' +
+        '<div class="field"><label class="lbl">Transfer outcome</label><select class="input" id="ed-out"><option value="">—</option>' + C.TRANSFER_OUTCOMES.map(function (x) { return '<option' + (x === c.TransferOutcome ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select><div class="err" data-err="TransferOutcome"></div></div></div>' +
+        '<div class="field"><label class="lbl">Notes</label><input class="input" id="ed-n" maxlength="300" value="' + esc(c.Notes) + '"></div>' +
+        (cap('review') ? '<div class="field"><label class="lbl">Reason for the correction</label><input class="input" id="ed-r" maxlength="300"><div class="err" data-err="reason"></div></div>' : '') +
+        '<button class="btn btn-primary" data-act="saveCall" data-id="' + esc(c.CallID) + '">Save</button></details>' : '') +
+      (cap('review') ? '<div class="sec"><button class="btn btn-sm" data-act="history" data-id="' + esc(c.CallID) + '">Change history</button><div id="hist"></div></div>' : '');
+    openModal({ title: esc(c.CallType) + ' · ' + esc(agentName(c.AgentID)), sub: esc(c.CallID), body: body, foot: (cap('review') ? '<button class="btn btn-danger" data-act="removeCall" data-id="' + esc(c.CallID) + '" style="margin-right:auto">Remove</button>' : '') + '<button class="btn" data-act="closeModal">Close</button>' });
+    tick();
+  };
+  ACT.saveCall = function (el) {
+    var c = (S.data.calls || []).filter(function (x) { return x.CallID === el.dataset.id; })[0], m = el.closest('.modal');
+    var call = { CallerStatus: $('#ed-cs').value, CallType: $('#ed-ct').value, CtmId: $('#ed-ctm').value, LeadId: $('#ed-lead').value, Notes: $('#ed-n').value };
+    if (C.PATH_OF[call.CallType] === 'Transfer') { call.Facility = $('#ed-fac').value; call.TransferOutcome = $('#ed-out').value; }
+    el.disabled = true;
+    write('updateCall', { id: c.CallID, expectedVersion: c.RecordVersion, call: call, reason: $('#ed-r') ? $('#ed-r').value : '' }).then(function () { closeModal(); render(); toast('Call saved.', 'ok'); }, function (e) { el.disabled = false; if (e.code === 'CONFLICT') { toast('Someone changed this call meanwhile. Reload and try again.', 'bad', 8000); return; } showErrors(m, e); });
+  };
+  ACT.removeCall = function (el) {
+    var c = (S.data.calls || []).filter(function (x) { return x.CallID === el.dataset.id; })[0];
+    confirmBox({ title: 'Remove this call?', message: 'It disappears from lists and reports. Nothing is deleted, and the reason is kept in the audit log.', reason: 'Reason', ok: 'Remove', danger: true }).then(function (r) {
+      if (!r) return; write('archiveCall', { id: c.CallID, expectedVersion: c.RecordVersion, reason: r.reason }).then(function () { closeModal(); render(); toast('Call removed.', 'ok'); }, function (e) { toast(errText(e), 'bad', 8000); }); });
+  };
+  ACT.history = function (el) { $('#hist').innerHTML = '<div class="muted small">Loading…</div>'; api('getChangeHistory', { id: el.dataset.id }).then(function (r) { $('#hist').innerHTML = r.rows.length ? '<ul class="hist">' + r.rows.map(function (h) { var d = {}; try { d = JSON.parse(h.Details || '{}'); } catch (e) { } return '<li><b>' + esc(h.Action.replace(/_/g, ' ').toLowerCase()) + '</b> <span class="muted small">' + esc(new Date(h.Timestamp).toLocaleString()) + ' · ' + esc(h.ActorEmail) + '</span>' + (h.ChangedFields ? '<div class="small">' + esc(h.ChangedFields.split(',').join(', ')) + '</div>' : '') + (d.reason ? '<div class="small">Reason: ' + esc(d.reason) + '</div>' : '') + '</li>'; }).join('') + '</ul>' : '<div class="muted small">No history yet.</div>'; }, function (e) { $('#hist').innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; }); };
+  // ================= Reports =================
+  var PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['week', 'This week'], ['month', 'This month'], ['lastmonth', 'Last month']];
+  function presetRange(p) { var t = todayEst(), d = new Date(t + 'T00:00:00Z'); if (p === 'today') return [t, t]; if (p === 'yesterday') return [addDays(t, -1), addDays(t, -1)]; if (p === '7') return [addDays(t, -6), t]; if (p === 'week') return [addDays(t, -((d.getUTCDay() + 6) % 7)), t];
+    if (p === 'month') return [t.slice(0, 8) + '01', t]; var first = t.slice(0, 8) + '01', lastEnd = addDays(first, -1); return [lastEnd.slice(0, 8) + '01', lastEnd]; }
+  function loadRange() { var f = S.f.reports; if (f.from >= (S.data.since || '')) { render(); return; } $('#page').innerHTML = '<div class="loading">Loading calls…</div>'; api('getCalls', { from: f.from, to: f.to }).then(function (r) { f.extra = r.calls; render(); }, function (e) { toast(errText(e), 'bad'); render(); }); }
+  PAGES.reports = function () {
+    var f = S.f.reports = S.f.reports || { preset: 'today', from: todayEst(), to: todayEst(), agent: '' };
+    var pool = f.extra && f.from < (S.data.since || '') ? f.extra : S.data.calls, r = C.report(pool, { from: f.from, to: f.to, agentId: f.agent, waitLimitSec: limitSec() }), T = r.total, pct = function (a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; };
+    S.lastReport = r;
+    var tile = function (k, v, sub, cls) { return '<div class="tile ' + (cls || '') + '"><div class="muted small">' + esc(k) + '</div><div class="tv">' + v + '</div>' + (sub ? '<div class="muted small">' + sub + '</div>' : '') + '</div>'; };
+    var row = function (x, label) { return '<tr><td>' + label + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.first + ' / ' + x.repeat + ' / ' + x.unknown + '</td><td class="n">' + x.parks + '</td><td class="n">' + pct(x.pickedUp, x.parks - x.stillParked) + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + C.fmtWait(x.maxWait) + '</td><td class="n' + (x.overLimit ? ' red' : '') + '">' + x.overLimit + '</td><td class="n">' + x.transfers + '</td><td class="n">' + pct(x.transferred, x.transfers) + '</td></tr>'; };
+    var head = '<tr><th></th><th class="n">Calls</th><th class="n">First / repeat / unknown</th><th class="n">Parked</th><th class="n">Picked up</th><th class="n">Abandoned</th><th class="n">Avg wait</th><th class="n">Longest</th><th class="n">Over limit</th><th class="n">Transfers</th><th class="n">Transferred</th></tr>';
+    return '<div class="filters">' + PRESETS.map(function (p) { return '<button class="btn btn-sm' + (f.preset === p[0] ? ' btn-primary' : '') + '" data-act="preset" data-p="' + p[0] + '">' + p[1] + '</button>'; }).join('') +
+      '<label>From<input type="date" class="input" data-rf="from" value="' + esc(f.from) + '"></label><label>To<input type="date" class="input" data-rf="to" value="' + esc(f.to) + '"></label>' +
+      '<label>Agent<select class="input" data-f="agent"><option value="">All</option>' + S.data.agents.slice().sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (f.agent === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select></label>' +
+      '<span class="spacer"></span><button class="btn btn-sm" data-act="exportCsv"' + (r.count ? '' : ' disabled') + '>Export CSV</button></div>' +
+      '<div class="tiles">' + tile('Calls', T.calls, T.first + ' first time · ' + T.repeat + ' repeat · ' + T.unknown + ' unknown') + tile('Parked (admission)', T.parks, T.stillParked ? T.stillParked + ' still parked' : '') + tile('Picked up', pct(T.pickedUp, T.parks - T.stillParked), T.pickedUp + ' picked up · ' + T.callbacks + ' callback · ' + T.abandoned + ' abandoned', T.abandoned ? 'warn' : '') +
+        tile('Wait', C.fmtWait(T.avgWait), 'average · longest ' + C.fmtWait(T.maxWait)) + tile('Over ' + (+S.data.settings.WaitLimitMin || 3) + ' min', T.overLimit, 'parked calls', T.overLimit ? 'bad' : '') + tile('Transfers (facility)', T.transfers, pct(T.transferred, T.transfers) + ' transferred') + '</div>' +
+      (r.count ? '<section class="card flush"><h2 class="pad">By agent</h2><div class="tw"><table class="t">' + head + r.byAgent.map(function (x) { return row(x, esc(agentName(x.key))); }).join('') + row(T, '<b>Total</b>') + '</table></div></section>' +
+        '<div class="grid2"><section class="card flush"><h2 class="pad">By day</h2><div class="tw"><table class="t"><tr><th>Day</th><th class="n">Calls</th><th class="n">Parked</th><th class="n">Abandoned</th><th class="n">Avg wait</th><th class="n">Transfers</th></tr>' + r.byDate.slice().reverse().map(function (x) { return '<tr><td>' + dLabel(x.key) + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.parks + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + x.transfers + '</td></tr>'; }).join('') + '</table></div></section>' +
+        '<section class="card flush"><h2 class="pad">Transfers by facility</h2><div class="tw"><table class="t"><tr><th>Facility</th><th class="n">Transfers</th><th class="n">Transferred</th><th class="n">No answer</th><th class="n">Declined</th></tr>' + r.byFacility.sort(function (a, b) { return b.transfers - a.transfers; }).map(function (x) { return '<tr><td>' + esc(x.key) + '</td><td class="n">' + x.transfers + '</td><td class="n">' + x.transferred + '</td><td class="n">' + x.noAnswer + '</td><td class="n">' + x.declined + '</td></tr>'; }).join('') + '</table></div></section></div>'
+        : '<div class="empty card">No calls in this period.</div>');
+  };
+  ACT.preset = function (el) { var f = S.f.reports, rg = presetRange(el.dataset.p); f.preset = el.dataset.p; f.from = rg[0]; f.to = rg[1]; loadRange(); };
+  ACT.exportCsv = function () {
+    var f = S.f.reports, pool = f.extra && f.from < (S.data.since || '') ? f.extra : S.data.calls;
+    var rows = pool.filter(function (c) { return c.Date >= f.from && c.Date <= f.to && (!f.agent || c.AgentID === f.agent); }).sort(function (a, b) { return a.CallAt < b.CallAt ? -1 : 1; });
+    var cell = function (v) { v = String(v === null || v === undefined ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var head = ['Call ID', 'Day (EST)', 'Time PHT', 'Time EST', 'Agent', 'Team lead', 'Caller', 'Call type', 'Path', 'CTM call ID', 'Lead ID', 'Facility', 'Transfer outcome', 'Park outcome', 'Picked up by', 'Wait (m:ss)', 'Notes'];
+    var csv = '\ufeff' + [head].concat(rows.map(function (c) { return [c.CallID, c.Date, C.pht(c.CallAt), C.est(c.CallAt), agentName(c.AgentID), tlName(c.TeamLeadID), c.CallerStatus, c.CallType, c.Path, c.CtmId, c.LeadId, c.Facility, c.TransferOutcome, c.ParkOutcome, c.PickedUpBy, c.WaitSec !== '' ? C.fmtWait(+c.WaitSec) : '', c.Notes]; })).map(function (r) { return r.map(cell).join(','); }).join('\r\n');
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'banyan_calls_' + f.from + '_to_' + f.to + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+    api('logExport', { report: 'calls ' + f.from + ' to ' + f.to, rowCount: rows.length }).catch(function () { }); toast('Exported ' + plural(rows.length, 'call') + '.', 'ok');
+  };
+  // ================= Settings =================
+  PAGES.settings = function () {
+    var f = S.f.settings = S.f.settings || { tab: 'users' }, tabs = [['users', 'Users'], ['roster', 'Agents and team leads'], ['rules', 'Settings'], ['audit', 'Audit log']];
+    return '<div class="tabs">' + tabs.map(function (t) { return '<button data-act="stab" data-t="' + t[0] + '"' + (f.tab === t[0] ? ' aria-selected="true"' : '') + '>' + t[1] + '</button>'; }).join('') + '</div>' + SET[f.tab]();
+  };
+  ACT.stab = function (el) { S.f.settings.tab = el.dataset.t; render(); };
+  var SET = {};
+  SET.users = function () { return '<div class="bar"><span class="muted">Only active users listed here can sign in. Agents see their own calls; team leads see their team.</span><span class="spacer"></span><button class="btn btn-primary" data-act="editUser">Add user</button></div><section class="card flush"><div class="tw"><table class="t"><tr><th>Name</th><th>Email</th><th>Role</th><th>Linked to</th><th>Active</th></tr>' +
+    S.data.users.map(function (u) { return '<tr class="click" data-act="editUser" data-id="' + esc(u.UserID) + '"><td>' + esc(u.DisplayName) + '</td><td>' + esc(u.Email) + '</td><td>' + esc(C.ROLE_LABELS[C.normRole(u.Role)] || u.Role) + '</td><td>' + esc(u.AgentID ? agentName(u.AgentID) : u.TeamLeadID ? tlName(u.TeamLeadID) : '—') + '</td><td>' + (C.b(u.Active) ? 'Yes' : 'No') + '</td></tr>'; }).join('') + '</table></div></section>'; };
+  SET.roster = function () { return '<div class="note">The roster is copied every hour from <b>Schedules</b> (campaign: ' + esc(S.data.settings.RosterCampaign) + '). Add or change people there. You can also add someone here if needed.</div><div class="bar"><span class="spacer"></span><button class="btn" data-act="editTL">Add team lead</button><button class="btn btn-primary" data-act="editAgent">Add agent</button></div>' +
+    '<section class="card flush"><h2 class="pad">Team leads</h2><div class="tw"><table class="t"><tr><th>Name</th><th>Email</th><th>Status</th></tr>' + S.data.teamLeads.map(function (t) { return '<tr class="click" data-act="editTL" data-id="' + esc(t.TeamLeadID) + '"><td>' + esc(t.FullName) + '</td><td>' + esc(t.Email) + '</td><td>' + esc(t.Status) + '</td></tr>'; }).join('') + '</table></div></section>' +
+    '<section class="card flush"><h2 class="pad">Agents (' + S.data.agents.length + ')</h2><div class="tw"><table class="t"><tr><th>Name</th><th>Employee ID</th><th>Team lead</th><th>Email</th><th>Status</th></tr>' + S.data.agents.slice().sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<tr class="click" data-act="editAgent" data-id="' + esc(a.AgentID) + '"><td>' + esc(a.FullName) + '</td><td>' + esc(a.EmployeeID) + '</td><td>' + esc(tlName(a.TeamLeadID)) + '</td><td>' + esc(a.Email) + '</td><td>' + esc(a.Status) + '</td></tr>'; }).join('') + '</table></div></section>'; };
+  SET.rules = function () { var st = S.data.settings, k = function (key, label, input, hint) { return '<div class="field"><label class="lbl" for="st-' + key + '">' + label + '</label>' + input + '<div class="hint">' + hint + '</div><div class="err" data-err="' + key + '"></div></div>'; };
+    return '<section class="card" style="max-width:720px">' + k('WaitLimitMin', 'Parked call wait limit (minutes)', '<input id="st-WaitLimitMin" class="input" type="number" min="1" max="60" data-st="WaitLimitMin" value="' + esc(st.WaitLimitMin) + '">', 'Parked calls waiting longer turn red and count as "over limit" in reports.') +
+      k('Facilities', 'Facilities', '<textarea id="st-Facilities" class="input" rows="10" data-st="Facilities">' + esc(st.Facilities) + '</textarea>', 'One per line. Renaming keeps past calls as they were logged.') +
+      k('SessionHours', 'Session length (hours)', '<input id="st-SessionHours" class="input" type="number" min="1" max="168" data-st="SessionHours" value="' + esc(st.SessionHours) + '">', 'How long people stay signed in after signing in with Google.') +
+      k('HistoryDays', 'Days of calls loaded', '<input id="st-HistoryDays" class="input" type="number" min="7" max="400" data-st="HistoryDays" value="' + esc(st.HistoryDays) + '">', 'Older calls are still available in Reports.') +
+      k('RosterCampaign', 'Roster campaign in Schedules', '<input id="st-RosterCampaign" class="input" data-st="RosterCampaign" value="' + esc(st.RosterCampaign) + '">', 'Agents and team leads of this campaign are copied from Schedules.') +
+      '<button class="btn btn-primary" data-act="saveSettings">Save settings</button></section>'; };
+  SET.audit = function () { return '<div class="bar"><span class="muted">Every change: who, what and when.</span><span class="spacer"></span><button class="btn btn-primary" data-act="loadAudit">Load latest entries</button></div><section class="card flush" id="audit-box"><div class="empty">Not loaded yet.</div></section>'; };
+  ACT.saveSettings = function (el) { var ch = {}; $$('[data-st]').forEach(function (x) { if (x.value.trim() !== String(S.data.settings[x.dataset.st])) ch[x.dataset.st] = x.value; }); if (!Object.keys(ch).length) { toast('No changes to save.'); return; } el.disabled = true;
+    write('saveSettings', { changes: ch }).then(function () { render(); toast('Settings saved.', 'ok'); }, function (e) { el.disabled = false; showErrors($('#page'), e); }); };
+  ACT.loadAudit = function () { $('#audit-box').innerHTML = '<div class="loading">Loading…</div>'; api('getAuditLog', { limit: 300 }).then(function (r) { $('#audit-box').innerHTML = '<div class="tw"><table class="t"><tr><th>Time</th><th>Who</th><th>Action</th><th>Record</th><th>Fields</th></tr>' + r.rows.map(function (h) { return '<tr><td class="small">' + esc(new Date(h.Timestamp).toLocaleString()) + '</td><td>' + esc(h.ActorEmail) + '</td><td>' + esc(h.Action) + '</td><td>' + esc(h.EntityType + ' ' + h.EntityID) + '</td><td class="small">' + esc(h.ChangedFields) + '</td></tr>'; }).join('') + '</table></div>'; }, function (e) { $('#audit-box').innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; }); };
+  function formModal(o) {
+    var r = o.rec || {}, m = openModal({ title: o.title, body: o.fields.map(function (f) { var v = r[f.k] === undefined ? (f.def || '') : r[f.k], inp = f.opts ? '<select class="input" data-k="' + f.k + '">' + f.opts.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (String(x[0]) === String(v) ? ' selected' : '') + '>' + esc(x[1]) + '</option>'; }).join('') + '</select>' : '<input class="input" data-k="' + f.k + '" value="' + esc(v) + '"' + (f.type ? ' type="' + f.type + '"' : '') + '>'; return '<div class="field"><label class="lbl">' + esc(f.label) + '</label>' + inp + (f.hint ? '<div class="hint">' + esc(f.hint) + '</div>' : '') + '<div class="err" data-err="' + f.k + '"></div></div>'; }).join(''), foot: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn btn-primary" id="fm-ok">Save</button>' });
+    $('#fm-ok', m).onclick = function () { var rec = {}; if (o.rec) rec[o.idKey] = o.rec[o.idKey]; $$('[data-k]', m).forEach(function (x) { rec[x.dataset.k] = x.value; }); var b = this; b.disabled = true;
+      write(o.action, { record: rec, expectedVersion: o.rec ? o.rec.RecordVersion : undefined }).then(function () { return api('bootstrap', {}); }).then(function (d) { S.data = d; closeModal(); render(); toast('Saved.', 'ok'); }, function (e) { b.disabled = false; showErrors(m, e); }); };
+  }
+  var opt = function (list, blank) { return (blank ? [['', blank]] : []).concat(list); };
+  ACT.editUser = function (el) { var u = el.dataset.id ? S.data.users.filter(function (x) { return x.UserID === el.dataset.id; })[0] : null;
+    formModal({ title: u ? 'Edit user' : 'Add user', rec: u, idKey: 'UserID', action: 'saveUser', fields: [{ k: 'Email', label: 'Company Google email', type: 'email' }, { k: 'DisplayName', label: 'Name' }, { k: 'Role', label: 'Role', def: 'AGENT', opts: C.ASSIGNABLE_ROLES.map(function (r) { return [r, C.ROLE_LABELS[r]]; }) },
+      { k: 'AgentID', label: 'Agent record (agents)', opts: opt(S.data.agents.map(function (a) { return [a.AgentID, a.FullName]; }), 'None') }, { k: 'TeamLeadID', label: 'Team lead record (team leads)', opts: opt(S.data.teamLeads.map(function (t) { return [t.TeamLeadID, t.FullName]; }), 'None') }, { k: 'Active', label: 'Can sign in', def: 'TRUE', opts: [['TRUE', 'Yes'], ['FALSE', 'No']] }] }); };
+  ACT.editAgent = function (el) { var a = el.dataset.id ? S.data.agents.filter(function (x) { return x.AgentID === el.dataset.id; })[0] : null;
+    formModal({ title: a ? 'Edit agent' : 'Add agent', rec: a, idKey: 'AgentID', action: 'saveAgent', fields: [{ k: 'FullName', label: 'Name (Last, First)' }, { k: 'EmployeeID', label: 'Employee ID' }, { k: 'TeamLeadID', label: 'Team lead', opts: opt(S.data.teamLeads.map(function (t) { return [t.TeamLeadID, t.FullName]; }), 'None') }, { k: 'Email', label: 'Work email', type: 'email' }, { k: 'Status', label: 'Status', def: 'Active', opts: [['Active', 'Active'], ['Inactive', 'Inactive']] }] }); };
+  ACT.editTL = function (el) { var t = el.dataset.id ? S.data.teamLeads.filter(function (x) { return x.TeamLeadID === el.dataset.id; })[0] : null;
+    formModal({ title: t ? 'Edit team lead' : 'Add team lead', rec: t, idKey: 'TeamLeadID', action: 'saveTeamLead', fields: [{ k: 'FullName', label: 'Name (Last, First)' }, { k: 'Email', label: 'Work email', type: 'email' }, { k: 'Status', label: 'Status', def: 'Active', opts: [['Active', 'Active'], ['Inactive', 'Inactive']] }] }); };
+  // ---------------- boot
+  window.addEventListener('error', function (e) { if (S.user) toast('Unexpected error: ' + e.message, 'bad'); });
+  function boot() { if (CFG.API_URL && CFG.GOOGLE_CLIENT_ID && getSession()) { start('http'); return; } renderLogin(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+
+</script>
+</body>
+</html>
