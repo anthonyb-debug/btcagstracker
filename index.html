@@ -148,7 +148,10 @@ var AGSCore = (function () {
   function pht(iso) { return clockIn(iso, PHT_MS); }
   function est(iso) { return clockIn(iso, EST_MS); }
   function isIso(v) { return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/.test(s(v)) && !isNaN(Date.parse(v)); }
-  function waitSec(c) { if (!c || c.Path !== 'Park' || !isIso(c.CallAt) || !isIso(c.ResolvedAt)) return null; return Math.max(0, Math.round((Date.parse(c.ResolvedAt) - Date.parse(c.CallAt)) / 1000)); }
+  // A park starts when the agent parks the call in the tracker (the moment it was logged, CreatedAt), not at the
+  // call time typed in the form (which can be earlier). Older records without CreatedAt fall back to the call time.
+  function parkedAt(c) { return c && isIso(c.CreatedAt) && c.Path === 'Park' && (!isIso(c.CallAt) || Date.parse(c.CreatedAt) >= Date.parse(c.CallAt)) ? c.CreatedAt : (c ? c.CallAt : ''); }
+  function waitSec(c) { if (!c || c.Path !== 'Park' || !isIso(parkedAt(c)) || !isIso(c.ResolvedAt)) return null; return Math.max(0, Math.round((Date.parse(c.ResolvedAt) - Date.parse(parkedAt(c))) / 1000)); }
   function fmtWait(sec) { if (sec === null || sec === undefined || sec === '') return '—'; sec = +sec; var m = Math.floor(sec / 60), x = sec % 60; return m + ':' + ('0' + x).slice(-2); }
   function facilitiesOf(st) { return s(settingsWithDefaults(st).Facilities).split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); }
   // ID fields hold IDs only: letters, digits and . - _ : # ( ) +, with at least 3 digits — never a patient's name.
@@ -329,7 +332,7 @@ var AGSCore = (function () {
     checkVersion('calls', cur, p.expectedVersion);
     var outcome = s(p.outcome), at = s(p.at) || ctx.now;
     if (PARK_OUTCOMES.indexOf(outcome) < 0) errors.outcome = 'Choose picked up, abandoned, callback scheduled or hung up during park.';
-    if (!isIso(at)) errors.at = 'Enter a valid time.'; else if (Date.parse(at) < Date.parse(cur.CallAt)) errors.at = 'This is before the call was parked.'; else if (Date.parse(at) > Date.parse(ctx.now) + 120000) errors.at = 'The time cannot be in the future.';
+    if (!isIso(at)) errors.at = 'Enter a valid time.'; else if (Date.parse(at) < Date.parse(parkedAt(cur))) errors.at = 'This is before the call was parked.'; else if (Date.parse(at) > Date.parse(ctx.now) + 120000) errors.at = 'The time cannot be in the future.';
     var by = clean(p.pickedUpBy, 80); if (outcome === 'Picked up' && !by) by = 'Admissions';
     failIf(errors);
     var ch = { ParkOutcome: outcome, ResolvedAt: new Date(Date.parse(at)).toISOString(), PickedUpBy: outcome === 'Picked up' ? by : '' };
@@ -446,12 +449,12 @@ var AGSCore = (function () {
             CtmId: String(40000000 + Math.floor(rnd() * 9999999)), LeadId: '00Q' + Math.floor(rnd() * 1e9), Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' };
           if (adm) { var w = 30 + Math.floor(rnd() * (rnd() < 0.15 ? 600 : 220)), r = rnd(); c.ParkOutcome = r < 0.76 ? 'Picked up' : r < 0.88 ? 'Callback scheduled' : r < 0.94 ? 'Hung up during park' : 'Abandoned'; c.ResolvedAt = new Date(at + w * 1000).toISOString(); c.WaitSec = String(w); c.PickedUpBy = c.ParkOutcome === 'Picked up' ? 'Admissions' : ''; }
           else { c.Facility = fac[Math.floor(rnd() * fac.length)]; var q = rnd(); c.TransferOutcome = q < 0.8 ? 'Transferred' : q < 0.9 ? TRANSFER_OUTCOMES[1] : q < 0.95 ? 'Hung up during transfer' : 'Declined'; }
-          D.calls.push(meta(c));
+          meta(c); c.CreatedAt = c.UpdatedAt = iso; D.calls.push(c);
         }
       });
     }
     // two calls parked right now
-    [[0, 70], [5, 260]].forEach(function (x, j) { var a = D.agents[x[0]], iso = new Date(now - x[1] * 1000).toISOString(); D.calls.push(meta({ CallID: 'CL-' + year + '-' + ('0000' + (++n)).slice(-5), AgentID: a.AgentID, TeamLeadID: a.TeamLeadID, Date: estDateOf(iso), CallAt: iso, CallerStatus: 'First time caller', CallType: 'Admission call', Path: 'Park', CtmId: String(48100000 + j), LeadId: '00Q' + (700000000 + j), Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' })); });
+    [[0, 70], [5, 260]].forEach(function (x, j) { var a = D.agents[x[0]], iso = new Date(now - x[1] * 1000).toISOString(); D.calls.push(meta({ CallID: 'CL-' + year + '-' + ('0000' + (++n)).slice(-5), AgentID: a.AgentID, TeamLeadID: a.TeamLeadID, Date: estDateOf(iso), CallAt: iso, CallerStatus: 'First time caller', CallType: 'Admission call', Path: 'Park', CtmId: String(48100000 + j), LeadId: '00Q' + (700000000 + j), Facility: '', TransferOutcome: '', ParkOutcome: '', ResolvedAt: '', PickedUpBy: '', WaitSec: '', Notes: '', CorrectionNote: '' })); D.calls[D.calls.length - 1].CreatedAt = iso; });
     var U = function (id, email, nm, role, extra) { D.users.push(meta(Object.assign({ UserID: id, Email: email, DisplayName: nm, Role: role, TeamLeadID: '', AgentID: '', Active: 'TRUE' }, extra || {}))); };
     U('USR-00001', 'celeste.navarro@example.com', 'Celeste Navarro', 'ADMIN');
     U('USR-00002', 'ben.ortega@example.com', 'Ben Ortega', 'TEAM_LEAD', { TeamLeadID: 'TL-00001' });
@@ -464,7 +467,7 @@ var AGSCore = (function () {
     DATA_ENTITIES: DATA_ENTITIES, DEFAULT_SETTINGS: DEFAULT_SETTINGS, CALLER_STATUSES: CALLER_STATUSES, CALL_TYPES: CALL_TYPES, PATH_OF: PATH_OF, PARK_OUTCOMES: PARK_OUTCOMES,
     TRANSFER_OUTCOMES: TRANSFER_OUTCOMES, DEFAULT_FACILITIES: DEFAULT_FACILITIES, ACTIVE_STATUSES: ACTIVE_STATUSES, WRITE_ACTIONS: WRITE_ACTIONS,
     AgsError: AgsError, s: s, b: b, isEmail: isEmail, live: live, clone: clone, settingsWithDefaults: settingsWithDefaults, normRole: normRole,
-    estDateOf: estDateOf, pht: pht, est: est, isIso: isIso, waitSec: waitSec, fmtWait: fmtWait, facilitiesOf: facilitiesOf, idProblem: idProblem, pending: pending, report: report,
+    estDateOf: estDateOf, pht: pht, est: est, isIso: isIso, waitSec: waitSec, parkedAt: parkedAt, fmtWait: fmtWait, facilitiesOf: facilitiesOf, idProblem: idProblem, pending: pending, report: report,
     agentOfUser: agentOfUser, isAdmin: isAdmin, isTL: isTL, isAgentRole: isAgentRole, capabilities: capabilities, buildScope: buildScope, inScope: inScope,
     resolveUser: resolveUser, publicUser: publicUser, handle: handle, generateSynthetic: generateSynthetic,
     _systemContext: function (repo, user) { return makeCtx(repo, user, 'system-' + repo.uuid()); }
@@ -612,8 +615,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     });
   };
   var idToken = null, idWaiters = [];
-  function getIdToken() { if (idToken) return Promise.resolve(idToken); return new Promise(function (res) { idWaiters.push(res); renderLogin(); }); }
-  function onCredential(resp) { idToken = resp && resp.credential; var w = idWaiters; idWaiters = []; w.forEach(function (f) { f(idToken); }); if (!S.user) start('http'); }
+  function tokenFresh(tk) { try { var p = JSON.parse(atob(tk.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); return p.exp * 1000 - Date.now() > 60000; } catch (e) { return false; } }
+  function getIdToken() { if (idToken && tokenFresh(idToken)) return Promise.resolve(idToken); idToken = null; return new Promise(function (res) { idWaiters.push(res); renderLogin(); }); }
+  // after signing in again mid-session: back to the same page (form contents kept), and the waiting request goes through
+  function onCredential(resp) { idToken = resp && resp.credential; var w = idWaiters; idWaiters = []; if (S.user) { renderShell(); render(); } w.forEach(function (f) { f(idToken); }); if (!S.user) start('http'); }
   function loadGsi(cb) { if (window.google && google.accounts && google.accounts.id) return cb(); var s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = cb; document.head.appendChild(s); }
   function api(action, payload) { return S.transport.call(action, payload, C.WRITE_ACTIONS.indexOf(action) >= 0 ? rid() : ''); }
   function apply(res) { if (!res) return; var ch = res.changed || {}; Object.keys(ch).forEach(function (e) { if (!S.data[e]) return; var key = C.ENTITIES[e].id; ch[e].forEach(function (r) { var i = -1; S.data[e].forEach(function (x, n) { if (x[key] === r[key]) i = n; }); if (r.ArchivedAt) { if (i >= 0) S.data[e].splice(i, 1); } else if (i >= 0) S.data[e][i] = r; else S.data[e].push(r); }); }); if (res.settings) S.data.settings = res.settings; }
@@ -627,6 +632,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     $('#app').innerHTML = '<div class="login"><div class="lcard"><div class="brand"><div class="logo">B</div><div><b>Banyan Tracker</b><div class="muted small">Alliance Global Solutions</div></div></div>' +
       '<h1>Transfers and parked calls, in one place.</h1><p class="muted">Log every call in a few taps. Admission calls are parked until Admissions picks up; facility calls are transferred. Only IDs are kept: never patient names or health details.</p>' +
       (err ? '<div class="note bad">' + esc(err.message || err) + '</div>' : '') +
+      (S.user ? '<div class="note">Your session has ended. Sign in again to continue: you\'ll return to where you were, and nothing you were saving is lost.</div>' : '') +
       (live ? '<div id="gis" style="margin-top:18px;min-height:44px">Loading Google sign-in…</div>' : '') +
       (demo ? '<div class="demo"><div class="lbl">Demo (invented data, stays in this browser)</div>' + users.map(function (u) { return '<button class="duser" data-act="demoLogin" data-email="' + esc(u.Email) + '"><span class="av">' + esc(initials(u.DisplayName)) + '</span><span><b>' + esc(u.DisplayName) + '</b><span class="muted small"> · ' + esc(C.ROLE_LABELS[u.Role]) + '</span></span></button>'; }).join('') + '</div>' : '') +
       (!live && !demo ? '<div class="note bad">This copy is not configured. An administrator sets API_URL and GOOGLE_CLIENT_ID at the top of index.html.</div>' : '') + '</div></div>';
@@ -657,9 +663,9 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   window.addEventListener('hashchange', function () { var p = location.hash.replace('#', ''); if (S.user && p && p !== S.page) { S.page = p; render(); } });
   // live timers for parked calls
   function parkedList() { return (S.data.calls || []).filter(C.pending).sort(function (a, b) { return a.CallAt < b.CallAt ? -1 : 1; }); }
-  function waitNow(c) { return Math.max(0, Math.round((Date.now() - Date.parse(c.CallAt)) / 1000)); }
+  function waitNow(c) { return Math.max(0, Math.round((Date.now() - Date.parse(C.parkedAt(c))) / 1000)); }
   function over(c) { return waitNow(c) > limitSec(); }
-  function tick() { $$('[data-timer]').forEach(function (el) { var c = { CallAt: el.dataset.timer }, w = waitNow(c); el.textContent = C.fmtWait(w); el.closest('.pcard') && el.closest('.pcard').classList.toggle('late', w > limitSec()); }); }
+  function tick() { keepAtNow(); $$('[data-timer]').forEach(function (el) { var c = { CallAt: el.dataset.timer }, w = waitNow(c); el.textContent = C.fmtWait(w); el.closest('.pcard') && el.closest('.pcard').classList.toggle('late', w > limitSec()); }); }
   setInterval(tick, 1000);
   setInterval(function () { if (S.user && !stack.length && document.visibilityState === 'visible' && S.page !== 'log') api('bootstrap', {}).then(function (d) { S.data = d; render(); }, function () { }); }, 60000);
   // ---------------- events
@@ -679,7 +685,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var F = S.f.log = S.f.log || { CallerStatus: '', CallType: '' }, path = C.PATH_OF[F.CallType] || '', fac = C.facilitiesOf(S.data.settings);
     var agentPick = '', _unused = '<div class="field"><label class="lbl" for="lg-a">Agent</label><select id="lg-a" class="input">' + '<option value="">Choose the agent</option>' + S.data.agents.filter(function (a) { return a.Status !== 'Inactive'; }).sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (F.AgentID === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select><div class="err" data-err="AgentID"></div></div>';
     var mine = parkedList().filter(function (c) { return c.AgentID === S.data.myAgentId; });
-    if (!F.at) F.at = estInput(nowIso());
+    if (!F.at || !F.atTouched) F.at = estInput(nowIso());
     var who = '<div class="whoami"><span class="av">' + esc(initials(agentName(S.data.myAgentId))) + '</span><span>Logging as <b>' + esc(agentName(S.data.myAgentId)) + '</b><span class="muted small"> · ' + esc(S.user.email) + '</span></span></div>';
     if (!S.data.myAgentId) return '<div class="note bad">Your email (' + esc(S.user.email) + ') is not on the Banyan roster yet, so calls can\'t be logged. Ask an Admin to check your email in Schedules.</div>';
     return '<div class="grid2"><section class="card"><h2>New call</h2>' + who +
@@ -695,11 +701,12 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       '<section class="card"><h2>' + (isAgent() ? 'Your parked calls' : 'Parked now') + '</h2>' + parkedCards(mine) + '</section></div>';
   };
   function keepLogInputs() { var F = S.f.log; if (!F) return; [['lg-at', 'at'], ['lg-ctm', 'CtmId'], ['lg-lead', 'LeadId'], ['lg-fac', 'Facility'], ['lg-out', 'TransferOutcome'], ['lg-n', 'Notes']].forEach(function (x) { var el = document.getElementById(x[0]); if (el) F[x[1]] = el.value; }); }
-  ACT.atNow = function () { keepLogInputs(); S.f.log.at = estInput(nowIso()); render(); };
-  document.addEventListener('input', function (e) { if (e.target.id === 'lg-at') { var h = document.getElementById('lg-at-h'), iso = fromEstInput(e.target.value); if (h) h.textContent = iso ? dLabel(e.target.value.slice(0, 10)) + ', ' + C.est(iso) + ' EST · ' + C.pht(iso) + ' PHT' : ''; } });
+  ACT.atNow = function () { keepLogInputs(); S.f.log.at = estInput(nowIso()); S.f.log.atTouched = false; render(); };
+  function keepAtNow() { var F = S.f.log, el = document.getElementById('lg-at'); if (!F || F.atTouched || !el || document.activeElement === el) return; var v = estInput(nowIso()); if (el.value !== v) { el.value = v; F.at = v; var h = document.getElementById('lg-at-h'); if (h) h.textContent = dLabel(v.slice(0, 10)) + ', ' + C.est(fromEstInput(v)) + ' EST · ' + C.pht(fromEstInput(v)) + ' PHT'; } }
+  document.addEventListener('input', function (e) { if (e.target.id === 'lg-at') { if (S.f.log) S.f.log.atTouched = true; var h = document.getElementById('lg-at-h'), iso = fromEstInput(e.target.value); if (h) h.textContent = iso ? dLabel(e.target.value.slice(0, 10)) + ', ' + C.est(iso) + ' EST · ' + C.pht(iso) + ' PHT' : ''; } });
   ACT.seg = function (el) { keepLogInputs(); S.f.log[el.dataset.name] = el.dataset.v; render(); };
   ACT.logCall = function (el) {
-    keepLogInputs(); var F = S.f.log, card = el.closest('.card'), call = { CallerStatus: F.CallerStatus, CallType: F.CallType, CtmId: F.CtmId, LeadId: F.LeadId, Notes: F.Notes, CallAt: fromEstInput(F.at) };
+    keepLogInputs(); var F = S.f.log, card = el.closest('.card'), call = { CallerStatus: F.CallerStatus, CallType: F.CallType, CtmId: F.CtmId, LeadId: F.LeadId, Notes: F.Notes, CallAt: F.atTouched ? fromEstInput(F.at) : '' };
     if (C.PATH_OF[F.CallType] === 'Transfer') { call.Facility = F.Facility; call.TransferOutcome = F.TransferOutcome; }
     el.disabled = true;
     write('logCall', { call: call }).then(function () { var park = C.PATH_OF[F.CallType] === 'Park'; S.f.log = { CallerStatus: '', CallType: '' }; render(); toast(park ? 'Call parked. Mark it when Admissions picks up.' : 'Transfer logged.', 'ok'); }, function (e) { el.disabled = false; showErrors(card, e); });
@@ -709,14 +716,14 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     if (!list.length) return '<div class="empty">No calls parked right now.</div>';
     return '<div class="plist">' + list.map(function (c) {
       var mayAct = !isAgent() || c.AgentID === S.data.myAgentId;
-      return '<div class="pcard' + (over(c) ? ' late' : '') + '"><div class="pt"><span class="timer" data-timer="' + esc(c.CallAt) + '">' + C.fmtWait(waitNow(c)) + '</span><div><b>' + esc(agentName(c.AgentID)) + '</b><div class="muted small">Parked ' + dLabel(c.Date) + ', ' + both(c.CallAt) + ' · CTM ' + esc(c.CtmId) + ' · ' + esc(c.CallerStatus) + '</div></div></div>' +
+      return '<div class="pcard' + (over(c) ? ' late' : '') + '"><div class="pt"><span class="timer" data-timer="' + esc(C.parkedAt(c)) + '">' + C.fmtWait(waitNow(c)) + '</span><div><b>' + esc(agentName(c.AgentID)) + '</b><div class="muted small">Parked ' + dLabel(C.estDateOf(C.parkedAt(c))) + ', ' + both(C.parkedAt(c)) + ' · CTM ' + esc(c.CtmId) + ' · ' + esc(c.CallerStatus) + '</div></div></div>' +
         (mayAct ? '<div class="pact">' + C.PARK_OUTCOMES.map(function (o) { return '<button class="btn' + (o === 'Picked up' ? ' btn-primary' : '') + '" data-act="resolve" data-id="' + esc(c.CallID) + '" data-o="' + esc(o) + '">' + esc(o) + '</button>'; }).join('') + '</div>' : '') + '</div>';
     }).join('') + '</div><div class="muted small" style="margin-top:8px">Red: waiting longer than ' + plural(+S.data.settings.WaitLimitMin || 3, 'minute') + '.</div>';
   }
   PAGES.parked = function () { var l = parkedList(); return '<section class="card"><h2>' + plural(l.length, 'call') + ' waiting for Admissions</h2>' + parkedCards(l) + '</section>'; };
   ACT.resolve = function (el) {
     var c = (S.data.calls || []).filter(function (x) { return x.CallID === el.dataset.id; })[0]; if (!c) return; var o = el.dataset.o;
-    var m = openModal({ title: esc(o), sub: esc(agentName(c.AgentID) + ' · parked ' + C.est(c.CallAt) + ' EST'), body: (o === 'Picked up' ? '<label class="lbl" for="rs-by">Picked up by</label><input id="rs-by" class="input" maxlength="80" value="Admissions"><div class="hint">Admissions, or the name of the admissions team member.</div>' : '<p>Record this parked call as <b>' + esc(o.toLowerCase()) + '</b>?</p>') + '<div class="err" data-err="at"></div>', foot: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn btn-primary" id="rs-ok">Save</button>' });
+    var m = openModal({ title: esc(o), sub: esc(agentName(c.AgentID) + ' · parked ' + C.est(C.parkedAt(c)) + ' EST'), body: (o === 'Picked up' ? '<label class="lbl" for="rs-by">Picked up by</label><input id="rs-by" class="input" maxlength="80" value="Admissions"><div class="hint">Admissions, or the name of the admissions team member.</div>' : '<p>Record this parked call as <b>' + esc(o.toLowerCase()) + '</b>?</p>') + '<div class="err" data-err="at"></div>', foot: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn btn-primary" id="rs-ok">Save</button>' });
     $('#rs-ok', m).onclick = function () { var by = $('#rs-by', m) ? $('#rs-by', m).value : ''; this.disabled = true; var b = this;
       write('resolvePark', { id: c.CallID, expectedVersion: c.RecordVersion, outcome: o, pickedUpBy: by }).then(function (r) { closeModal(); render(); var x = (S.data.calls || []).filter(function (y) { return y.CallID === c.CallID; })[0]; toast(o + (x ? ' after ' + C.fmtWait(+x.WaitSec) : '') + '.', 'ok'); }, function (e) { b.disabled = false; showErrors(m, e); }); };
   };
@@ -744,7 +751,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var own = isAgent() && c.AgentID === S.data.myAgentId, canEdit = (own && c.Date === todayEst()) || cap('review'), fac = C.facilitiesOf(S.data.settings);
     var dl = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + (v === '' || v === undefined ? '—' : v) + '</dd></div>'; };
     var body = '<dl class="dl">' + dl('Agent', esc(agentName(c.AgentID))) + dl('Team lead', esc(tlName(c.TeamLeadID))) + dl('Time', dLabel(c.Date) + ' · ' + both(c.CallAt)) + dl('Caller', esc(c.CallerStatus)) + dl('Call type', esc(c.CallType)) + dl('CTM call ID', esc(c.CtmId)) + dl('Lead ID', esc(c.LeadId)) +
-      (c.Path === 'Park' ? dl('Outcome', c.ParkOutcome ? esc(c.ParkOutcome) + (c.PickedUpBy ? ' by ' + esc(c.PickedUpBy) : '') : 'Still parked') + dl('Wait', c.WaitSec !== '' ? C.fmtWait(+c.WaitSec) : (C.pending(c) ? '<span data-timer="' + esc(c.CallAt) + '"></span> so far' : '—')) + (c.ResolvedAt ? dl('Resolved', both(c.ResolvedAt)) : '') : dl('Facility', esc(c.Facility)) + dl('Outcome', esc(c.TransferOutcome))) +
+      (c.Path === 'Park' ? dl('Outcome', c.ParkOutcome ? esc(c.ParkOutcome) + (c.PickedUpBy ? ' by ' + esc(c.PickedUpBy) : '') : 'Still parked') + dl('Wait', c.WaitSec !== '' ? C.fmtWait(+c.WaitSec) : (C.pending(c) ? '<span data-timer="' + esc(C.parkedAt(c)) + '"></span> so far' : '—')) + (c.ResolvedAt ? dl('Resolved', both(c.ResolvedAt)) : '') : dl('Facility', esc(c.Facility)) + dl('Outcome', esc(c.TransferOutcome))) +
       dl('Notes', esc(c.Notes)) + (c.CorrectionNote ? dl('Last correction', esc(c.CorrectionNote)) : '') + '</dl>' +
       (canEdit ? '<details class="edit"><summary>' + (own && !cap('review') ? 'Edit this call' : 'Correct this call') + '</summary><div class="row2" style="margin-top:10px"><div class="field"><label class="lbl">Caller</label><select class="input" id="ed-cs">' + C.CALLER_STATUSES.map(function (x) { return '<option' + (x === c.CallerStatus ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field"><label class="lbl">Call type</label><select class="input" id="ed-ct">' + C.CALL_TYPES.map(function (x) { return '<option' + (x === c.CallType ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>' +
