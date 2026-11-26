@@ -109,7 +109,10 @@ var AGSCore = (function () {
     Facilities: [DEFAULT_FACILITIES.join('\n'), 'Facilities agents can transfer to, one per line.'],
     HistoryDays: ['62', 'How many days of calls the app loads (team leads and admins can load more in Reports).'],
     SessionHours: ['12', 'How long people stay signed in after signing in with Google (hours, 1–168).'],
-    RosterCampaign: ['Banyan', 'Campaign name used when copying agents and team leads from Schedules.']
+    RosterCampaign: ['Banyan', 'Campaign name used when copying agents and team leads from Schedules.'],
+    CallReportSheet: ['', 'Link (or ID) of the Google Sheet with the daily call report, used for transfer rates.'],
+    CallReportTab: ['Daily Call Report', 'Tab in the call report sheet that has Date, User name and Inbound calls.'],
+    CallReportNameMap: ['', 'Call report names that do not match an agent by name, one per line: Report name = Agent name or Agent ID.']
   };
 
   // ------------------------------------------------------------------ helpers
@@ -390,11 +393,14 @@ var AGSCore = (function () {
     Facilities: function (v) { var l = v.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); return l.length && l.length <= 80 && l.every(function (x) { return x.length <= 60; }) ? '' : 'List 1 to 80 facilities, one per line.'; },
     HistoryDays: function (v) { return /^\d{1,3}$/.test(v) && +v >= 7 && +v <= 400 ? '' : 'Enter 7 to 400 days.'; },
     SessionHours: function (v) { return /^\d{1,3}$/.test(v) && +v >= 1 && +v <= 168 ? '' : 'Enter a number of hours from 1 to 168 (7 days).'; },
-    RosterCampaign: function (v) { return v && v.length <= 80 ? '' : 'Enter the campaign name.'; }
+    RosterCampaign: function (v) { return v && v.length <= 80 ? '' : 'Enter the campaign name.'; },
+    CallReportSheet: function (v) { return v === '' || sheetIdOf(v) ? '' : 'Paste the Google Sheet link (or its ID).'; },
+    CallReportTab: function (v) { return v && v.length <= 100 ? '' : 'Enter the tab name.'; },
+    CallReportNameMap: function (v) { if (!v) return ''; var l = v.split(/\r?\n/); return l.length <= 200 && l.every(function (x) { var q = x.split('='); return x.length <= 160 && q.length === 2 && q[0].trim() && q[1].trim(); }) ? '' : 'One per line, like: Nikki Lumactod = Lumactod, Nikki'; }
   };
   H.saveSettings = { write: true, admin: true, fn: function (ctx, p) {
     var ch = p.changes || {}, errors = {}, cur = ctx.settings, ok = {};
-    Object.keys(ch).forEach(function (k) { if (!SETTING_RULES[k]) { errors[k] = 'Unknown setting.'; return; } var v = s(ch[k]).trim(); if (k === 'Facilities') v = v.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean).join('\n'); var msg = SETTING_RULES[k](v); if (msg) errors[k] = msg; else if (v !== s(cur[k])) ok[k] = v; });
+    Object.keys(ch).forEach(function (k) { if (!SETTING_RULES[k]) { errors[k] = 'Unknown setting.'; return; } var v = s(ch[k]).trim(); if (k === 'Facilities' || k === 'CallReportNameMap') v = v.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean).join('\n'); var msg = SETTING_RULES[k](v); if (msg) errors[k] = msg; else if (v !== s(cur[k])) ok[k] = v; });
     failIf(errors);
     Object.keys(ok).forEach(function (k) { ctx.repo.setSetting(k, ok[k], ctx.user.email, ctx.now); ctx.audit('SETTINGS_UPDATE', 'settings', k, [k], { value: [s(cur[k]).slice(0, 100), ok[k].slice(0, 100)] }); });
     return { primary: { entity: 'settings', id: 'AppSettings' }, changed: {}, settings: settingsWithDefaults(ctx.repo.getSettings()) };
@@ -407,6 +413,46 @@ var AGSCore = (function () {
     if (isAgentRole(ctx.user)) forbid('Reports are for team leads and admins.');
     var from = s(p.from), to = s(p.to); if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw AgsError('VALIDATION', 'Choose a date range.');
     return { calls: ctx.repo.all('calls').filter(function (r) { return live(r) && r.Date >= from && r.Date <= to && ctx.visible('calls', r); }) };
+  } };
+  // ---------- call report: inbound calls per agent per day, read (read-only) from another Google Sheet
+  function sheetIdOf(v) { v = s(v).trim(); var m = /\/d\/([A-Za-z0-9_-]{20,})/.exec(v); if (m) return m[1]; return /^[A-Za-z0-9_-]{20,}$/.test(v) ? v : ''; }
+  function nameTokens(v) { var t = s(v).toLowerCase(); try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { } return t.replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean); }
+  function nameKey(v) { return nameTokens(v).sort().join(' '); }   // "Lumactod, Nikki" and "Nikki Lumactod" give the same key
+  function agentMatcher(agents, mapText) {
+    var exact = {}, list = [], ids = byKey(agents, 'AgentID'), map = {}, memo = {};
+    agents.forEach(function (a) { var tk = nameTokens(a.FullName); if (!tk.length) return; var k = tk.slice().sort().join(' '); (exact[k] = exact[k] || []).push(a); list.push({ a: a, t: tk }); });
+    var one = function (k) { return exact[k] && exact[k].length === 1 ? exact[k][0] : null; };
+    s(mapText).split(/\r?\n/).forEach(function (line) { var q = line.split('='); if (q.length !== 2) return; var to = q[1].trim(), a = ids[to] || one(nameKey(to)); if (a) map[nameKey(q[0])] = a; });
+    return function (name) {
+      var k = nameKey(name); if (!k) return null; if (k in memo) return memo[k];
+      var hit = map[k] || one(k);
+      if (!hit) {   // tolerate an extra middle name or initial on either side, but only when exactly one agent fits
+        var tk = nameTokens(name);
+        if (tk.length >= 2) { var c = list.filter(function (x) { return x.t.length >= 2 && (tk.every(function (w) { return x.t.indexOf(w) >= 0; }) || x.t.every(function (w) { return tk.indexOf(w) >= 0; })); }); if (c.length === 1) hit = c[0].a; }
+      }
+      return (memo[k] = hit || null);
+    };
+  }
+  H.getCallVolume = { fn: function (ctx, p) {
+    if (isAgentRole(ctx.user)) forbid('Reports are for team leads and admins.');
+    var from = s(p.from), to = s(p.to); if (!isIsoDate(from) || !isIsoDate(to) || from > to) throw AgsError('VALIDATION', 'Choose a date range.');
+    if (diffDays(to, from) > 400) throw AgsError('VALIDATION', 'Choose a range of 400 days or less.');
+    var st = ctx.settings, id = sheetIdOf(st.CallReportSheet);
+    var reader = ctx.repo.callVolume ? function (a, b, c, d) { return ctx.repo.callVolume(a, b, c, d); } : (typeof readCallReport_ === 'function' ? readCallReport_ : null);
+    if (!id && !ctx.repo.callVolume) return { configured: false, rows: [], unmatched: [] };
+    if (!reader) throw AgsError('SERVER_ERROR', 'The call report reader (CallReport.gs) is not installed on the server.');
+    var src = reader(id, s(st.CallReportTab) || 'Daily Call Report', from, to) || {};
+    var match = agentMatcher(ctx.repo.all('agents').filter(live), st.CallReportNameMap), agg = {}, miss = {};
+    (src.rows || []).forEach(function (r) {
+      var inb = n(r.inbound) || 0; if (!isIsoDate(r.date) || r.date < from || r.date > to) return;
+      var a = match(r.name);
+      if (!a) { var nm = clean(r.name, 80); if (nm) miss[nm] = (miss[nm] || 0) + inb; return; }
+      if (!ctx.visible('agents', a)) return;
+      var k = a.AgentID + '|' + r.date; agg[k] = (agg[k] || 0) + inb;
+    });
+    return { configured: true, readAt: src.readAt || ctx.now,
+      rows: Object.keys(agg).map(function (k) { var x = k.split('|'); return { agentId: x[0], date: x[1], inbound: agg[k] }; }),
+      unmatched: isAdmin(ctx.user) ? Object.keys(miss).sort().map(function (k) { return { name: k, inbound: miss[k] }; }) : [] };
   } };
   H.logExport = { write: true, fn: function (ctx, p) { if (isAgentRole(ctx.user)) forbid('Exports are for team leads and admins.'); ctx.audit('EXPORT', 'report', clean(p.report, 80), [], { rows: +p.rowCount || 0 }); return { primary: { entity: 'report', id: clean(p.report, 80) }, changed: {} }; } };
 
@@ -469,7 +515,7 @@ var AGSCore = (function () {
     AgsError: AgsError, s: s, b: b, isEmail: isEmail, live: live, clone: clone, settingsWithDefaults: settingsWithDefaults, normRole: normRole,
     estDateOf: estDateOf, pht: pht, est: est, isIso: isIso, waitSec: waitSec, parkedAt: parkedAt, fmtWait: fmtWait, facilitiesOf: facilitiesOf, idProblem: idProblem, pending: pending, report: report,
     agentOfUser: agentOfUser, isAdmin: isAdmin, isTL: isTL, isAgentRole: isAgentRole, capabilities: capabilities, buildScope: buildScope, inScope: inScope,
-    resolveUser: resolveUser, publicUser: publicUser, handle: handle, generateSynthetic: generateSynthetic,
+    resolveUser: resolveUser, publicUser: publicUser, handle: handle, sheetIdOf: sheetIdOf, nameKey: nameKey, generateSynthetic: generateSynthetic,
     _systemContext: function (repo, user) { return makeCtx(repo, user, 'system-' + repo.uuid()); }
   };
 })();
@@ -533,6 +579,13 @@ MemoryRepo.prototype = {
     if (o.action) rows = rows.filter(function (r) { return r.Action === o.action; });
     if (o.status) rows = rows.filter(function (r) { return r.Status === o.status; });
     return rows.slice(0, o.limit || 200);
+  },
+  callVolume: function (id, tab, from, to) {   // demo stand-in for the call report sheet
+    var self = this, seen = {}, rows = [];
+    this.state.calls.forEach(function (c) { if (c.ArchivedAt || c.Date < from || c.Date > to) return; var k = c.AgentID + '|' + c.Date; seen[k] = (seen[k] || 0) + 1; });
+    Object.keys(seen).forEach(function (k) { var x = k.split('|'), a = self.get('agents', x[0]); if (a) rows.push({ date: x[1], name: a.FullName.split(',').reverse().join(' ').trim(), inbound: seen[k] + 2 + (x[1].charCodeAt(9) + a.AgentID.charCodeAt(7)) % 7 }); });
+    rows.push({ date: from, name: 'Not On Roster', inbound: 9 });
+    return { rows: rows, readAt: this.nowIso() };
   },
   createBackup: function (now) { return { name: 'Demo snapshot ' + now, note: 'In demo mode, use "Download demo data (JSON)" to keep a copy.' }; },
   nowIso: function () { return this.opts.now ? this.opts.now() : new Date().toISOString(); },
@@ -783,21 +836,44 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function presetRange(p) { var t = todayEst(), d = new Date(t + 'T00:00:00Z'); if (p === 'today') return [t, t]; if (p === 'yesterday') return [addDays(t, -1), addDays(t, -1)]; if (p === '7') return [addDays(t, -6), t]; if (p === 'week') return [addDays(t, -((d.getUTCDay() + 6) % 7)), t];
     if (p === 'month') return [t.slice(0, 8) + '01', t]; var first = t.slice(0, 8) + '01', lastEnd = addDays(first, -1); return [lastEnd.slice(0, 8) + '01', lastEnd]; }
   function loadRange() { var f = S.f.reports; if (f.from >= (S.data.since || '')) { render(); return; } $('#page').innerHTML = '<div class="loading">Loading calls…</div>'; api('getCalls', { from: f.from, to: f.to }).then(function (r) { f.extra = r.calls; render(); }, function (e) { toast(errText(e), 'bad'); render(); }); }
+  // inbound calls from the call report sheet (cached 10 minutes per date range)
+  function loadVolume(f) {
+    var key = f.from + '|' + f.to; if (S.cv && S.cv.key === key && (S.cv.loading || Date.now() - S.cv.at < 600000)) return;
+    S.cv = { key: key, loading: true, at: Date.now() };
+    var done = function (o) { if (!S.cv || S.cv.key !== key) return; o.key = key; o.at = Date.now(); S.cv = o; if (S.page === 'reports') render(); };
+    api('getCallVolume', { from: f.from, to: f.to }).then(function (d) { done({ data: d }); }, function (e) { done({ error: errText(e) }); });
+  }
+  ACT.retryVolume = function () { S.cv = null; render(); };
   PAGES.reports = function () {
     var f = S.f.reports = S.f.reports || { preset: 'today', from: todayEst(), to: todayEst(), agent: '' };
     var pool = f.extra && f.from < (S.data.since || '') ? f.extra : S.data.calls, r = C.report(pool, { from: f.from, to: f.to, agentId: f.agent, waitLimitSec: limitSec() }), T = r.total, pct = function (a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; };
     S.lastReport = r;
+    loadVolume(f);
+    var cv = S.cv && S.cv.key === f.from + '|' + f.to ? S.cv : null, vol = cv && cv.data && cv.data.configured ? cv.data : null, inA = {}, inD = {}, inT = 0;
+    if (vol) vol.rows.forEach(function (x) { if (f.agent && x.agentId !== f.agent) return; inA[x.agentId] = (inA[x.agentId] || 0) + x.inbound; inD[x.date] = (inD[x.date] || 0) + x.inbound; inT += x.inbound; });
+    var zero = function (k) { var z = C.report([], {}).total; z.key = k; return z; }, has = function (list, k) { return list.some(function (x) { return x.key === k; }); };
+    Object.keys(inA).forEach(function (k) { if (!has(r.byAgent, k)) r.byAgent.push(zero(k)); }); r.byAgent.sort(function (a, b) { return agentName(a.key) < agentName(b.key) ? -1 : 1; });
+    Object.keys(inD).forEach(function (k) { if (!has(r.byDate, k)) r.byDate.push(zero(k)); }); r.byDate.sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+    var rate1 = function (a, b) { return b ? (a / b * 100).toFixed(1) + '%' : '—'; };
+    var inOf = function (x) { return x.key === undefined ? inT : (inA[x.key] || 0); };
+    var volIn = function (x) { return vol ? '<td class="n">' + inOf(x) + '</td><td class="n">' + rate1(x.calls, inOf(x)) + '</td>' : ''; };
+    var volRate = function (x) { return vol ? '<td class="n"><b>' + rate1(x.transferred, inOf(x)) + '</b></td>' : ''; };
+    var volNote = !cv || cv.loading ? '<div class="note">Loading the call report…</div>'
+      : cv.error ? '<div class="note">Could not read the call report: ' + esc(cv.error) + ' <button class="btn btn-sm" data-act="retryVolume">Try again</button></div>'
+      : !cv.data.configured ? (cap('settings') ? '<div class="note">To see transfer rates, add the call report sheet link in Settings → Settings.</div>' : '')
+      : cv.data.unmatched.length ? '<div class="note">' + cv.data.unmatched.length + ' name' + (cv.data.unmatched.length > 1 ? 's' : '') + ' in the call report did not match an agent, so their calls are left out: ' + cv.data.unmatched.slice(0, 12).map(function (u) { return esc(u.name) + ' (' + u.inbound + ')'; }).join(', ') + (cv.data.unmatched.length > 12 ? ', …' : '') + '. Match them under Settings → Settings → Call report name matching.</div>' : '';
     var tile = function (k, v, sub, cls) { return '<div class="tile ' + (cls || '') + '"><div class="muted small">' + esc(k) + '</div><div class="tv">' + v + '</div>' + (sub ? '<div class="muted small">' + sub + '</div>' : '') + '</div>'; };
-    var row = function (x, label) { return '<tr><td>' + label + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.first + ' / ' + x.repeat + ' / ' + x.unknown + '</td><td class="n">' + x.parks + '</td><td class="n">' + pct(x.pickedUp, x.parks - x.stillParked) + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + x.hungUpPark + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + C.fmtWait(x.maxWait) + '</td><td class="n' + (x.overLimit ? ' red' : '') + '">' + x.overLimit + '</td><td class="n">' + x.transfers + '</td><td class="n">' + pct(x.transferred, x.transfers) + '</td><td class="n">' + x.hungUpTransfer + '</td></tr>'; };
-    var head = '<tr><th></th><th class="n">Calls</th><th class="n">First / repeat / unknown</th><th class="n">Parked</th><th class="n">Picked up</th><th class="n">Abandoned</th><th class="n">Hung up (park)</th><th class="n">Avg wait</th><th class="n">Longest</th><th class="n">Over limit</th><th class="n">Transfers</th><th class="n">Transferred</th><th class="n">Hung up (transfer)</th></tr>';
+    var row = function (x, label) { return '<tr><td>' + label + '</td><td class="n">' + x.calls + '</td>' + volIn(x) + '<td class="n">' + x.first + ' / ' + x.repeat + ' / ' + x.unknown + '</td><td class="n">' + x.parks + '</td><td class="n">' + pct(x.pickedUp, x.parks - x.stillParked) + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + x.hungUpPark + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + C.fmtWait(x.maxWait) + '</td><td class="n' + (x.overLimit ? ' red' : '') + '">' + x.overLimit + '</td><td class="n">' + x.transfers + '</td><td class="n">' + pct(x.transferred, x.transfers) + '</td>' + volRate(x) + '<td class="n">' + x.hungUpTransfer + '</td></tr>'; };
+    var head = '<tr><th></th><th class="n">Calls</th>' + (vol ? '<th class="n" title="Inbound calls in the call report">Inbound (report)</th><th class="n" title="Calls logged in the tracker ÷ inbound calls">Logged</th>' : '') + '<th class="n">First / repeat / unknown</th><th class="n">Parked</th><th class="n">Picked up</th><th class="n">Abandoned</th><th class="n">Hung up (park)</th><th class="n">Avg wait</th><th class="n">Longest</th><th class="n">Over limit</th><th class="n">Transfers</th><th class="n">Transferred</th>' + (vol ? '<th class="n" title="Calls transferred ÷ inbound calls">Transfer rate</th>' : '') + '<th class="n">Hung up (transfer)</th></tr>';
     return '<div class="filters">' + PRESETS.map(function (p) { return '<button class="btn btn-sm' + (f.preset === p[0] ? ' btn-primary' : '') + '" data-act="preset" data-p="' + p[0] + '">' + p[1] + '</button>'; }).join('') +
       '<label>From<input type="date" class="input" data-rf="from" value="' + esc(f.from) + '"></label><label>To<input type="date" class="input" data-rf="to" value="' + esc(f.to) + '"></label>' +
       '<label>Agent<select class="input" data-f="agent"><option value="">All</option>' + S.data.agents.slice().sort(function (a, b) { return a.FullName < b.FullName ? -1 : 1; }).map(function (a) { return '<option value="' + esc(a.AgentID) + '"' + (f.agent === a.AgentID ? ' selected' : '') + '>' + esc(a.FullName) + '</option>'; }).join('') + '</select></label>' +
       '<span class="spacer"></span><button class="btn btn-sm" data-act="exportCsv"' + (r.count ? '' : ' disabled') + '>Export CSV</button></div>' +
       '<div class="tiles">' + tile('Calls', T.calls, T.first + ' first time · ' + T.repeat + ' repeat · ' + T.unknown + ' unknown') + tile('Parked (admission)', T.parks, T.stillParked ? T.stillParked + ' still parked' : '') + tile('Picked up', pct(T.pickedUp, T.parks - T.stillParked), T.pickedUp + ' picked up · ' + T.callbacks + ' callback · ' + T.abandoned + ' abandoned · ' + T.hungUpPark + ' hung up', T.abandoned || T.hungUpPark ? 'warn' : '') +
-        tile('Wait', C.fmtWait(T.avgWait), 'average · longest ' + C.fmtWait(T.maxWait)) + tile('Over ' + (+S.data.settings.WaitLimitMin || 3) + ' min', T.overLimit, 'parked calls', T.overLimit ? 'bad' : '') + tile('Transfers (facility)', T.transfers, pct(T.transferred, T.transfers) + ' transferred · ' + T.hungUpTransfer + ' hung up') + '</div>' +
-      (r.count ? '<section class="card flush"><h2 class="pad">By agent</h2><div class="tw"><table class="t">' + head + r.byAgent.map(function (x) { return row(x, esc(agentName(x.key))); }).join('') + row(T, '<b>Total</b>') + '</table></div></section>' +
-        '<div class="grid2"><section class="card flush"><h2 class="pad">By day</h2><div class="tw"><table class="t"><tr><th>Day</th><th class="n">Calls</th><th class="n">Parked</th><th class="n">Abandoned</th><th class="n">Avg wait</th><th class="n">Transfers</th></tr>' + r.byDate.slice().reverse().map(function (x) { return '<tr><td>' + dLabel(x.key) + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.parks + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + x.transfers + '</td></tr>'; }).join('') + '</table></div></section>' +
+        tile('Wait', C.fmtWait(T.avgWait), 'average · longest ' + C.fmtWait(T.maxWait)) + tile('Over ' + (+S.data.settings.WaitLimitMin || 3) + ' min', T.overLimit, 'parked calls', T.overLimit ? 'bad' : '') +  tile('Transfers (facility)', T.transfers, pct(T.transferred, T.transfers) + ' transferred · ' + T.hungUpTransfer + ' hung up') +
+        (vol ? tile('Transfer rate', rate1(T.transferred, inT), T.transferred + ' transferred of ' + inT + ' inbound calls') : '') + '</div>' + volNote +
+      (r.count || inT ? '<section class="card flush"><h2 class="pad">By agent</h2><div class="tw"><table class="t">' + head + r.byAgent.map(function (x) { return row(x, esc(agentName(x.key))); }).join('') + row(T, '<b>Total</b>') + '</table></div></section>' +
+        '<div class="grid2"><section class="card flush"><h2 class="pad">By day</h2><div class="tw"><table class="t"><tr><th>Day</th><th class="n">Calls</th><th class="n">Parked</th><th class="n">Abandoned</th><th class="n">Avg wait</th><th class="n">Transfers</th>' + (vol ? '<th class="n">Inbound</th><th class="n">Transfer rate</th>' : '') + '</tr>' + r.byDate.slice().reverse().map(function (x) { return '<tr><td>' + dLabel(x.key) + '</td><td class="n">' + x.calls + '</td><td class="n">' + x.parks + '</td><td class="n">' + x.abandoned + '</td><td class="n">' + C.fmtWait(x.avgWait) + '</td><td class="n">' + x.transfers + '</td>' + (vol ? '<td class="n">' + (inD[x.key] || 0) + '</td><td class="n">' + rate1(x.transferred, inD[x.key] || 0) + '</td>' : '') + '</tr>'; }).join('') + '</table></div></section>' +
         '<section class="card flush"><h2 class="pad">Transfers by facility</h2><div class="tw"><table class="t"><tr><th>Facility</th><th class="n">Transfers</th><th class="n">Transferred</th><th class="n">No answer</th><th class="n">Declined</th><th class="n">Hung up</th></tr>' + r.byFacility.sort(function (a, b) { return b.transfers - a.transfers; }).map(function (x) { return '<tr><td>' + esc(x.key) + '</td><td class="n">' + x.transfers + '</td><td class="n">' + x.transferred + '</td><td class="n">' + x.noAnswer + '</td><td class="n">' + x.declined + '</td><td class="n">' + x.hungUpTransfer + '</td></tr>'; }).join('') + '</table></div></section></div>'
         : '<div class="empty card">No calls in this period.</div>');
   };
@@ -829,6 +905,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       k('SessionHours', 'Session length (hours)', '<input id="st-SessionHours" class="input" type="number" min="1" max="168" data-st="SessionHours" value="' + esc(st.SessionHours) + '">', 'How long people stay signed in after signing in with Google.') +
       k('HistoryDays', 'Days of calls loaded', '<input id="st-HistoryDays" class="input" type="number" min="7" max="400" data-st="HistoryDays" value="' + esc(st.HistoryDays) + '">', 'Older calls are still available in Reports.') +
       k('RosterCampaign', 'Roster campaign in Schedules', '<input id="st-RosterCampaign" class="input" data-st="RosterCampaign" value="' + esc(st.RosterCampaign) + '">', 'Agents and team leads of this campaign are copied from Schedules.') +
+      '<h2 style="margin:18px 0 8px">Call report (for transfer rates)</h2>' +
+      k('CallReportSheet', 'Call report sheet link', '<input id="st-CallReportSheet" class="input" data-st="CallReportSheet" placeholder="https://docs.google.com/spreadsheets/d/…" value="' + esc(st.CallReportSheet) + '">', 'Read only. The account that runs the tracker script needs at least view access to this sheet.') +
+      k('CallReportTab', 'Tab name', '<input id="st-CallReportTab" class="input" data-st="CallReportTab" value="' + esc(st.CallReportTab) + '">', 'Row 1 must have Date, User name and Inbound calls columns (any order).') +
+      k('CallReportNameMap', 'Call report name matching', '<textarea id="st-CallReportNameMap" class="input" rows="4" data-st="CallReportNameMap" placeholder="JD Flores = Flores, Juan Dela">' + esc(st.CallReportNameMap) + '</textarea>', 'Only needed when a name in the call report differs from the roster. One per line: Report name = Agent name or Agent ID. Reports list any names that did not match.') +
       '<button class="btn btn-primary" data-act="saveSettings">Save settings</button></section>'; };
   SET.audit = function () { return '<div class="bar"><span class="muted">Every change: who, what and when.</span><span class="spacer"></span><button class="btn btn-primary" data-act="loadAudit">Load latest entries</button></div><section class="card flush" id="audit-box"><div class="empty">Not loaded yet.</div></section>'; };
   ACT.saveSettings = function (el) { var ch = {}; $$('[data-st]').forEach(function (x) { if (x.value.trim() !== String(S.data.settings[x.dataset.st])) ch[x.dataset.st] = x.value; }); if (!Object.keys(ch).length) { toast('No changes to save.'); return; } el.disabled = true;
